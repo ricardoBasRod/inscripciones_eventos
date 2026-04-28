@@ -1,0 +1,31 @@
+/* Global Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* App Container */
+app-root {
+  display: block;
+  min-height: 100vh;
+}
+
+/* Animations */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}

@@ -1,0 +1,49 @@
+<div class="container">
+  <header class="header">
+    <h1>{{ title }}</h1>
+    <p>Descarga y visualiza la información de inscripciones</p>
+  </header>
+
+  <main class="main-content">
+    <!-- Download Button Section -->
+    <div class="button-section">
+      <button 
+        class="download-btn"
+        (click)="downloadData()"
+        [disabled]="isLoading">
+        <span *ngIf="!isLoading">📥 Descargar Información</span>
+        <span *ngIf="isLoading">Cargando...</span>
+      </button>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div *ngIf="isLoading" class="loading-indicator">
+      <div class="spinner"></div>
+      <p>Descargando datos...</p>
+    </div>
+
+    <!-- Table Section -->
+    <div class="table-section">
+      <h2>Datos de Inscripciones</h2>
+      <div class="table-wrapper">
+        <table *ngIf="tableData.length > 0; else emptyTable" class="data-table">
+          <thead>
+            <tr>
+              <th *ngFor="let column of columns">{{ column }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of tableData">
+              <td *ngFor="let column of columns">{{ row[column] }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <ng-template #emptyTable>
+          <div class="empty-message">
+            <p>No hay datos para mostrar. Haz clic en "Descargar Información" para cargar los datos.</p>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+  </main>
+</div>

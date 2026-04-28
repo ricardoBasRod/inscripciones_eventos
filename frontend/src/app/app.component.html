@@ -1,0 +1,47 @@
+<div class="container">
+  <header class="header">
+    <h1>Gestion de Eventos</h1>
+    <p>Informacion desde OneDrive Excel</p>
+  </header>
+
+  <main class="main-content">
+    <div class="controls">
+      <button class="btn btn-primary" (click)="downloadExcel()" [disabled]="isLoading || isExporting">
+        <span *ngIf="!isExporting">Descargar Excel</span>
+        <span *ngIf="isExporting">Descargando...</span>
+      </button>
+    </div>
+
+    <div *ngIf="error" class="error-message">
+      {{ error }}
+    </div>
+
+    <div *ngIf="isLoading" class="empty-state">
+      <p>Cargando datos...</p>
+    </div>
+
+    <div *ngIf="!isLoading && tableData.length > 0" class="table-container">
+      <h2>Datos ({{ tableData.length }} registros)</h2>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th *ngFor="let col of columns">{{ col }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of tableData">
+            <td *ngFor="let col of columns">{{ row[col] }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div *ngIf="!isLoading && tableData.length === 0 && !error" class="empty-state">
+      <p>No hay datos disponibles.</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>Gestion de Eventos</p>
+  </footer>
+</div>
