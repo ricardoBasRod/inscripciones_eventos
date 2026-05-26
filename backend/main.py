@@ -1,30 +1,26 @@
 """
-FastAPI Backend for Gestión de Eventos
-Descarga datos de Excel desde OneDrive y los sirve via API
+FastAPI backend para gestion de eventos usando MongoDB Atlas.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
-import httpx
+from fastapi.responses import StreamingResponse
+from pymongo import MongoClient
 import pandas as pd
 import io
 import os
 from typing import List, Dict, Any
 import logging
 
-# Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Crear aplicación FastAPI
 app = FastAPI(
-    title="Gestión de Eventos API",
+    title="Gestion de Eventos API",
     description="API para gestionar eventos e inscripciones",
-    version="1.0.0"
+    version="2.0.0",
 )
 
-# Configurar CORS para que funcione con el frontend de Angular
 origins = [
     "http://localhost:4200",
     "http://127.0.0.1:4200",
@@ -39,196 +35,205 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configuración
-ONEDRIVE_URL = os.getenv(
-    "ONEDRIVE_URL",
-    "https://1drv.ms/x/c/b19f31b2afda8ba0/IQCxNEN3UmXBQLI_rl5VESYZAQqLNYWhB5ipHNjRt0Wprbs?e=oCO30X"
-)
+MONGODB_URI = os.getenv("MONGODB_URI", "").strip()
+MONGODB_DB = os.getenv("MONGODB_DB", "gestion_eventos").strip()
+MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "inscripciones").strip()
+
+mongo_client: MongoClient | None = None
+
+
+def _normalizar_df(df: pd.DataFrame, columnas: List[str]) -> List[Dict[str, Any]]:
+    resultado: List[Dict[str, Any]] = []
+    for _, row in df.iterrows():
+        registro: Dict[str, Any] = {}
+        for col in columnas:
+            valor = row.get(col)
+            if pd.isna(valor):
+                registro[col] = ""
+            else:
+                registro[col] = str(valor).strip()
+        resultado.append(registro)
+    return resultado
+
+
+def _obtener_collection():
+    global mongo_client
+    if not MONGODB_URI:
+        raise HTTPException(
+            status_code=500,
+            detail="Falta MONGODB_URI en variables de entorno."
+        )
+
+    if mongo_client is None:
+        mongo_client = MongoClient(MONGODB_URI)
+
+    db = mongo_client[MONGODB_DB]
+    return db[MONGODB_COLLECTION]
+
+
+def _leer_todos() -> List[Dict[str, Any]]:
+    collection = _obtener_collection()
+    docs = list(collection.find({}, {"_id": 0}))
+    return docs
 
 
 @app.get("/")
 async def root():
-    """Endpoint raíz"""
     return {
-        "message": "Gestión de Eventos API",
-        "version": "1.0.0",
-        "docs": "/docs"
+        "message": "Gestion de Eventos API",
+        "version": "2.0.0",
+        "storage": "mongodb",
+        "docs": "/docs",
     }
 
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy"}
+    try:
+        collection = _obtener_collection()
+        collection.estimated_document_count()
+        return {"status": "healthy", "storage": "mongodb"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"MongoDB no disponible: {str(e)}")
 
 
 @app.get("/api/datos")
 async def obtener_datos():
-    """
-    Obtiene los datos del archivo Excel de OneDrive
-    
-    Returns:
-        List[Dict]: Lista de registros del Excel
-    """
     try:
-        # Convertir la URL compartida de OneDrive a URL de descarga directa
-        download_url = _convertir_url_onedrive(ONEDRIVE_URL)
-        
-        logger.info(f"Descargando datos de OneDrive: {download_url}")
-        
-        # Descargar el archivo
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.get(download_url, timeout=30.0)
-            response.raise_for_status()
-        
-        # Leer el Excel
-        excel_data = io.BytesIO(response.content)
-        df = pd.read_excel(excel_data)
-        
-        # Convertir a lista de diccionarios
-        datos = df.to_dict(orient='records')
-        
-        logger.info(f"Se obtuvieron {len(datos)} registros")
-        
+        datos = _leer_todos()
+        columnas = list(datos[0].keys()) if datos else []
         return {
             "success": True,
             "total": len(datos),
-            "columns": df.columns.tolist(),
-            "data": datos
+            "columns": columnas,
+            "data": datos,
         }
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error al obtener datos: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al descargar datos: {str(e)}"
-        )
+        logger.error(f"Error al obtener datos de MongoDB: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al obtener datos: {str(e)}")
 
 
 @app.get("/api/datos/excel")
 async def descargar_datos_excel():
-    """Descarga los datos de OneDrive en formato Excel."""
     try:
-        download_url = _convertir_url_onedrive(ONEDRIVE_URL)
-        logger.info(f"Descargando datos para exportacion: {download_url}")
-
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.get(download_url, timeout=30.0)
-            response.raise_for_status()
-
-        excel_data = io.BytesIO(response.content)
-        df = pd.read_excel(excel_data)
-
+        datos = _leer_todos()
+        df = pd.DataFrame(datos)
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="Registros")
         output.seek(0)
-
         return StreamingResponse(
             output,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": 'attachment; filename="registros_eventos.xlsx"'}
+            headers={"Content-Disposition": 'attachment; filename="registros_mongodb.xlsx"'},
         )
     except Exception as e:
         logger.error(f"Error al exportar datos: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al exportar datos: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error al exportar datos: {str(e)}")
 
 
-@app.post("/api/datos/upload")
-async def cargar_datos_personalizados(file_url: str):
-    """
-    Carga datos desde una URL de OneDrive personalizada
-    
-    Args:
-        file_url: URL del archivo en OneDrive
-        
-    Returns:
-        Dict con los datos procesados
-    """
+@app.post("/api/datos/upload-excel")
+async def cargar_excel_diferencial(file: UploadFile = File(...)):
     try:
-        download_url = _convertir_url_onedrive(file_url)
-        
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.get(download_url, timeout=30.0)
-            response.raise_for_status()
-        
-        excel_data = io.BytesIO(response.content)
-        df = pd.read_excel(excel_data)
-        datos = df.to_dict(orient='records')
-        
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="No se recibio archivo.")
+
+        nombre = file.filename.lower()
+        if not (nombre.endswith(".xlsx") or nombre.endswith(".xls")):
+            raise HTTPException(status_code=400, detail="El archivo debe ser Excel (.xlsx o .xls).")
+
+        contenido = await file.read()
+        if not contenido:
+            raise HTTPException(status_code=400, detail="El archivo Excel esta vacio.")
+
+        df_subido = pd.read_excel(io.BytesIO(contenido))
+        if len(df_subido.columns) == 0:
+            raise HTTPException(status_code=400, detail="No se encontraron columnas en el archivo.")
+
+        columnas_subidas = [str(col).strip() for col in df_subido.columns.tolist()]
+        subido_norm = _normalizar_df(df_subido, columnas_subidas)
+
+        collection = _obtener_collection()
+        base_docs = _leer_todos()
+
+        if not base_docs:
+            if subido_norm:
+                collection.insert_many(subido_norm)
+            return {
+                "success": True,
+                "message": "Base inicializada desde archivo Excel.",
+                "columns": columnas_subidas,
+                "summary": {
+                    "total_mongodb": 0,
+                    "total_subido": len(subido_norm),
+                    "insertados": len(subido_norm),
+                    "actualizados": 0,
+                    "sin_cambios": 0,
+                },
+                "data": subido_norm,
+            }
+
+        columnas_base = list(base_docs[0].keys())
+        if columnas_subidas != columnas_base:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "El formato del archivo no coincide con el formato actual de la base de datos. "
+                    f"Columnas esperadas: {columnas_base}. "
+                    f"Columnas recibidas: {columnas_subidas}."
+                ),
+            )
+
+        base_norm = [{col: str(doc.get(col, "")).strip() for col in columnas_base} for doc in base_docs]
+        key_col = columnas_base[0]
+
+        base_map = {row.get(key_col, ""): row for row in base_norm if row.get(key_col, "") != ""}
+        subido_map = {row.get(key_col, ""): row for row in subido_norm if row.get(key_col, "") != ""}
+
+        insertados = 0
+        actualizados = 0
+        sin_cambios = 0
+
+        for key, row_subido in subido_map.items():
+            row_base = base_map.get(key)
+            if row_base is None:
+                collection.insert_one(row_subido)
+                insertados += 1
+            elif row_base != row_subido:
+                collection.update_one({key_col: key}, {"$set": row_subido})
+                actualizados += 1
+            else:
+                sin_cambios += 1
+
+        datos_actualizados = _leer_todos()
+        cambios_detectados = insertados + actualizados
         return {
             "success": True,
-            "total": len(datos),
-            "columns": df.columns.tolist(),
-            "data": datos
+            "message": (
+                "Carga diferencial aplicada sobre MongoDB."
+                if cambios_detectados > 0
+                else "No se detectaron cambios respecto a la base actual."
+            ),
+            "columns": columnas_base,
+            "summary": {
+                "total_mongodb": len(base_norm),
+                "total_subido": len(subido_norm),
+                "insertados": insertados,
+                "actualizados": actualizados,
+                "sin_cambios": sin_cambios,
+                "diferentes": cambios_detectados,
+            },
+            "data": datos_actualizados,
         }
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error al cargar datos personalizados: {str(e)}")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Error al procesar archivo: {str(e)}"
-        )
-
-
-def _convertir_url_onedrive(url: str) -> str:
-    """
-    Convierte una URL compartida de OneDrive a URL de descarga directa
-    
-    Args:
-        url: URL compartida de OneDrive
-        
-    Returns:
-        str: URL de descarga directa
-    """
-    # Ejemplo: https://1drv.ms/x/c/...?e=xxxxx
-    # Convertir a: https://1drv.ms/download?resid=...&authkey=...
-    
-    if "1drv.ms" not in url:
-        raise ValueError("URL no es válida de OneDrive")
-    
-    # Método alternativo: agregar ?download=1 al final
-    if "?" in url:
-        return url.split("?")[0] + "?download=1"
-    else:
-        return url + "?download=1"
-
-
-@app.get("/api/columnas")
-async def obtener_columnas():
-    """Obtiene solo las columnas del archivo Excel"""
-    try:
-        download_url = _convertir_url_onedrive(ONEDRIVE_URL)
-        
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.get(download_url, timeout=30.0)
-            response.raise_for_status()
-        
-        excel_data = io.BytesIO(response.content)
-        df = pd.read_excel(excel_data)
-        
-        return {
-            "success": True,
-            "columns": df.columns.tolist(),
-            "data_types": df.dtypes.astype(str).to_dict()
-        }
-        
-    except Exception as e:
-        logger.error(f"Error al obtener columnas: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error: {str(e)}"
-        )
+        logger.error(f"Error al cargar Excel diferencial: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error al procesar archivo: {str(e)}")
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

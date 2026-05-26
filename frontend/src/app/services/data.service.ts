@@ -8,6 +8,15 @@ interface DatosResponse {
   columns: string[];
   data: Record<string, any>[];
   message?: string;
+  summary?: CargaResumen;
+}
+
+interface CargaResumen {
+  total_mongodb: number;
+  total_subido: number;
+  insertados: number;
+  actualizados: number;
+  sin_cambios: number;
 }
 
 @Injectable({
@@ -18,7 +27,7 @@ export class DataService {
 
   constructor(private http: HttpClient) {}
 
-  downloadFromOneDrive(): Observable<DatosResponse> {
+  getDatos(): Observable<DatosResponse> {
     return this.http.get<DatosResponse>(`${this.apiUrl}/datos`).pipe(
       catchError(error => {
         console.error('Error en DataService:', error);
@@ -31,6 +40,18 @@ export class DataService {
     return this.http.get(`${this.apiUrl}/datos/excel`, { responseType: 'blob' }).pipe(
       catchError(error => {
         console.error('Error descargando Excel:', error);
+        throw error;
+      })
+    );
+  }
+
+  uploadExcel(file: File): Observable<DatosResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return this.http.post<DatosResponse>(`${this.apiUrl}/datos/upload-excel`, formData).pipe(
+      catchError(error => {
+        console.error('Error subiendo Excel:', error);
         throw error;
       })
     );

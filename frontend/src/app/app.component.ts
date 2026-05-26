@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { DataService } from './services/data.service';
 
 interface DatosResponse {
@@ -8,21 +9,35 @@ interface DatosResponse {
   columns: string[];
   data: Record<string, any>[];
   message?: string;
+  summary?: CargaResumen;
+}
+
+interface CargaResumen {
+  total_mongodb: number;
+  total_subido: number;
+  insertados: number;
+  actualizados: number;
+  sin_cambios: number;
+  diferentes?: number;
 }
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
 export class AppComponent implements OnInit {
   isLoading = false;
   isExporting = false;
+  isUploading = false;
+  searchTerm = '';
   tableData: Record<string, any>[] = [];
   columns: string[] = [];
   error: string | null = null;
+  loadSummary: CargaResumen | null = null;
+  expandedColumns = new Set<string>();
 
   constructor(private dataService: DataService) {}
 
@@ -34,7 +49,7 @@ export class AppComponent implements OnInit {
     this.isLoading = true;
     this.error = null;
 
-    this.dataService.downloadFromOneDrive().subscribe({
+    this.dataService.getDatos().subscribe({
       next: (response: DatosResponse) => {
         this.tableData = response.data;
         this.columns = response.columns;
@@ -68,5 +83,98 @@ export class AppComponent implements OnInit {
         this.isExporting = false;
       }
     });
+  }
+
+  openFilePicker(fileInput: HTMLInputElement): void {
+    fileInput.click();
+  }
+
+  onFileSelected(event: Event): void {
+    const target = event.target as HTMLInputElement;
+    const selectedFile = target.files?.[0];
+
+    if (!selectedFile) {
+      return;
+    }
+
+    const fileName = selectedFile.name.toLowerCase();
+    if (!fileName.endsWith('.xlsx') && !fileName.endsWith('.xls')) {
+      this.error = 'Selecciona un archivo Excel valido (.xlsx o .xls).';
+      target.value = '';
+      return;
+    }
+
+    this.isUploading = true;
+    this.error = null;
+    this.loadSummary = null;
+
+    this.dataService.uploadExcel(selectedFile).subscribe({
+      next: (response: DatosResponse) => {
+        this.tableData = response.data;
+        this.columns = response.columns;
+        this.loadSummary = response.summary || null;
+        this.isUploading = false;
+        target.value = '';
+      },
+      error: (err: any) => {
+        console.error('Error subiendo Excel:', err);
+        this.error = err?.error?.detail || 'No se pudo cargar el archivo Excel.';
+        this.isUploading = false;
+        target.value = '';
+      }
+    });
+  }
+
+  getColumnLabel(column: string): string {
+    if (this.expandedColumns.has(column)) {
+      return column;
+    }
+    return this.shortenColumnName(column);
+  }
+
+  isColumnExpanded(column: string): boolean {
+    return this.expandedColumns.has(column);
+  }
+
+  toggleColumnExpansion(column: string): void {
+    if (this.expandedColumns.has(column)) {
+      this.expandedColumns.delete(column);
+    } else {
+      this.expandedColumns.add(column);
+    }
+  }
+
+  getFilteredRows(): Record<string, any>[] {
+    const term = this.searchTerm.trim().toLowerCase();
+    if (!term) {
+      return this.tableData;
+    }
+
+    const nombreCols = this.columns.filter(c => c.toLowerCase().includes('nombre'));
+    const matriculaCols = this.columns.filter(c => c.toLowerCase().includes('matricula'));
+    const targetCols = [...new Set([...nombreCols, ...matriculaCols])];
+    const colsToSearch = targetCols.length > 0 ? targetCols : this.columns;
+
+    return this.tableData.filter((row) =>
+      colsToSearch.some((col) => String(row[col] ?? '').toLowerCase().includes(term))
+    );
+  }
+
+  private shortenColumnName(column: string): string {
+    const words = column
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    if (words.length <= 3 && column.length <= 20) {
+      return column;
+    }
+
+    const threeWords = words.slice(0, 3).join(' ');
+    if (threeWords.length <= 20) {
+      return threeWords;
+    }
+
+    return threeWords.slice(0, 20).trim();
   }
 }

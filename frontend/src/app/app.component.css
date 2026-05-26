@@ -35,6 +35,10 @@
 
 .controls {
   margin-bottom: 2rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .btn {
@@ -76,8 +80,9 @@
   background: white;
   border-radius: 0.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  max-width: 900px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 96vw;
   width: 100%;
 }
 
@@ -88,8 +93,22 @@
   border-bottom: 1px solid #eee;
 }
 
+.search-bar {
+  padding: 1rem 1.5rem 0.75rem;
+}
+
+.search-bar input {
+  width: 100%;
+  max-width: 460px;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #ccc;
+  border-radius: 0.4rem;
+  font-size: 0.95rem;
+}
+
 .data-table {
   width: 100%;
+  min-width: 1400px;
   border-collapse: collapse;
 }
 
@@ -103,11 +122,32 @@
   font-weight: 600;
   color: #333;
   border-bottom: 2px solid #ddd;
+  white-space: nowrap;
+}
+
+.header-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.col-toggle {
+  border: 1px solid #bbb;
+  background: #fff;
+  color: #333;
+  border-radius: 0.25rem;
+  width: 1.3rem;
+  height: 1.3rem;
+  line-height: 1rem;
+  padding: 0;
+  cursor: pointer;
+  font-weight: 700;
 }
 
 .data-table td {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid #eee;
+  white-space: nowrap;
 }
 
 .data-table tbody tr:hover {

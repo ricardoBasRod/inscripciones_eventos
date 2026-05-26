@@ -1,19 +1,62 @@
 <div class="container">
   <header class="header">
     <h1>Gestion de Eventos</h1>
-    <p>Informacion desde OneDrive Excel</p>
+    <p>Informacion desde MongoDB Atlas</p>
   </header>
 
   <main class="main-content">
     <div class="controls">
-      <button class="btn btn-primary" (click)="downloadExcel()" [disabled]="isLoading || isExporting">
+      <button class="btn btn-primary" (click)="downloadExcel()" [disabled]="isLoading || isExporting || isUploading">
         <span *ngIf="!isExporting">Descargar Excel</span>
         <span *ngIf="isExporting">Descargando...</span>
       </button>
+      <button class="btn btn-primary" (click)="openFilePicker(excelInput)" [disabled]="isLoading || isExporting || isUploading">
+        <span *ngIf="!isUploading">Cargar</span>
+        <span *ngIf="isUploading">Cargando...</span>
+      </button>
+      <input
+        #excelInput
+        type="file"
+        accept=".xlsx,.xls"
+        style="display:none"
+        (change)="onFileSelected($event)"
+      />
     </div>
 
     <div *ngIf="error" class="error-message">
       {{ error }}
+    </div>
+
+    <div *ngIf="loadSummary" class="table-container">
+      <h2>Resultado de carga</h2>
+      <table class="data-table">
+        <tbody>
+          <tr>
+            <th>Total MongoDB antes</th>
+            <td>{{ loadSummary.total_mongodb }}</td>
+          </tr>
+          <tr>
+            <th>Total subido</th>
+            <td>{{ loadSummary.total_subido }}</td>
+          </tr>
+          <tr>
+            <th>Insertados</th>
+            <td>{{ loadSummary.insertados }}</td>
+          </tr>
+          <tr>
+            <th>Actualizados</th>
+            <td>{{ loadSummary.actualizados }}</td>
+          </tr>
+          <tr>
+            <th>Sin cambios</th>
+            <td>{{ loadSummary.sin_cambios }}</td>
+          </tr>
+          <tr *ngIf="loadSummary.diferentes !== undefined">
+            <th>Diferentes</th>
+            <td>{{ loadSummary.diferentes }}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <div *ngIf="isLoading" class="empty-state">
@@ -22,14 +65,29 @@
 
     <div *ngIf="!isLoading && tableData.length > 0" class="table-container">
       <h2>Datos ({{ tableData.length }} registros)</h2>
+      <div class="search-bar">
+        <input
+          type="text"
+          placeholder="Buscar por nombre o matricula"
+          [(ngModel)]="searchTerm"
+        />
+      </div>
       <table class="data-table">
         <thead>
           <tr>
-            <th *ngFor="let col of columns">{{ col }}</th>
+            <th *ngFor="let col of columns" [title]="col">
+              <div class="header-cell">
+                <span>{{ getColumnLabel(col) }}</span>
+                <button class="col-toggle" (click)="toggleColumnExpansion(col)" type="button">
+                  <span *ngIf="!isColumnExpanded(col)">+</span>
+                  <span *ngIf="isColumnExpanded(col)">-</span>
+                </button>
+              </div>
+            </th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let row of tableData">
+          <tr *ngFor="let row of getFilteredRows()">
             <td *ngFor="let col of columns">{{ row[col] }}</td>
           </tr>
         </tbody>
