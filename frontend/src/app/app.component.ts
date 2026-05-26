@@ -145,7 +145,7 @@ export class AppComponent implements OnInit {
   }
 
   getFilteredRows(): Record<string, any>[] {
-    const term = this.searchTerm.trim().toLowerCase();
+    const term = this.normalizeSearchValue(this.searchTerm.trim());
     if (!term) {
       return this.tableData;
     }
@@ -156,8 +156,14 @@ export class AppComponent implements OnInit {
     const colsToSearch = targetCols.length > 0 ? targetCols : this.columns;
 
     return this.tableData.filter((row) =>
-      colsToSearch.some((col) => String(row[col] ?? '').toLowerCase().includes(term))
+      colsToSearch.some((col) =>
+        this.normalizeSearchValue(String(row[col] ?? '')).includes(term)
+      )
     );
+  }
+
+  shouldShowColumnToggle(column: string): boolean {
+    return column.trim().length > 20;
   }
 
   private shortenColumnName(column: string): string {
@@ -176,5 +182,12 @@ export class AppComponent implements OnInit {
     }
 
     return threeWords.slice(0, 20).trim();
+  }
+
+  private normalizeSearchValue(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
   }
 }

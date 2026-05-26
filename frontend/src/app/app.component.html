@@ -78,7 +78,11 @@
             <th *ngFor="let col of columns" [title]="col">
               <div class="header-cell">
                 <span>{{ getColumnLabel(col) }}</span>
-                <button class="col-toggle" (click)="toggleColumnExpansion(col)" type="button">
+                <button
+                  *ngIf="shouldShowColumnToggle(col)"
+                  class="col-toggle"
+                  (click)="toggleColumnExpansion(col)"
+                  type="button">
                   <span *ngIf="!isColumnExpanded(col)">+</span>
                   <span *ngIf="isColumnExpanded(col)">-</span>
                 </button>
