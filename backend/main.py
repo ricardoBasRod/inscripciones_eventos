@@ -1,24 +1,29 @@
 """
-FastAPI backend para gestion de eventos usando MongoDB Atlas.
+FastAPI backend para gestionar registros desde un Excel remoto.
+
+Soporta URLs publicas de OneDrive, Google Drive y Google Sheets publicado.
+La lectura funciona sin credenciales si el archivo tiene permisos de lectura.
+La escritura directa requiere configurar la API del proveedor.
 """
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pymongo import MongoClient
+import httpx
 import pandas as pd
 import io
 import os
 from typing import List, Dict, Any
 import logging
+import re
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Gestion de Eventos API",
-    description="API para gestionar eventos e inscripciones",
-    version="2.0.0",
+    description="API para gestionar eventos e inscripciones desde Excel remoto",
+    version="3.0.0",
 )
 
 origins = [
@@ -35,11 +40,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MONGODB_URI = os.getenv("MONGODB_URI", "").strip()
-MONGODB_DB = os.getenv("MONGODB_DB", "gestion_eventos").strip()
-MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "inscripciones").strip()
-
-mongo_client: MongoClient | None = None
+EXCEL_SOURCE_URL = os.getenv("EXCEL_SOURCE_URL", "").strip()
+EXCEL_SHEET_NAME = os.getenv("EXCEL_SHEET_NAME", "").strip() or None
 
 
 def _normalizar_df(df: pd.DataFrame, columnas: List[str]) -> List[Dict[str, Any]]:
@@ -48,41 +50,65 @@ def _normalizar_df(df: pd.DataFrame, columnas: List[str]) -> List[Dict[str, Any]
         registro: Dict[str, Any] = {}
         for col in columnas:
             valor = row.get(col)
-            if pd.isna(valor):
-                registro[col] = ""
-            else:
-                registro[col] = str(valor).strip()
+            registro[col] = "" if pd.isna(valor) else str(valor).strip()
         resultado.append(registro)
     return resultado
 
 
-def _obtener_collection():
-    global mongo_client
-    if not MONGODB_URI:
-        raise HTTPException(
-            status_code=500,
-            detail="Falta MONGODB_URI en variables de entorno."
-        )
+def _url_descarga(url: str) -> str:
+    if not url:
+        raise HTTPException(status_code=500, detail="Falta EXCEL_SOURCE_URL en backend/.env.")
 
-    if mongo_client is None:
-        mongo_client = MongoClient(MONGODB_URI)
+    if "1drv.ms" in url:
+        return url.split("?")[0] + "?download=1"
 
-    db = mongo_client[MONGODB_DB]
-    return db[MONGODB_COLLECTION]
+    google_file = re.search(r"drive\.google\.com/file/d/([^/]+)", url)
+    if google_file:
+        file_id = google_file.group(1)
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+    google_open = re.search(r"drive\.google\.com/open\?id=([^&]+)", url)
+    if google_open:
+        file_id = google_open.group(1)
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+
+    google_sheet = re.search(r"docs\.google\.com/spreadsheets/d/([^/]+)", url)
+    if google_sheet:
+        sheet_id = google_sheet.group(1)
+        return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=xlsx"
+
+    return url
 
 
-def _leer_todos() -> List[Dict[str, Any]]:
-    collection = _obtener_collection()
-    docs = list(collection.find({}, {"_id": 0}))
-    return docs
+async def _leer_excel_remoto() -> pd.DataFrame:
+    download_url = _url_descarga(EXCEL_SOURCE_URL)
+    logger.info(f"Descargando Excel remoto: {download_url}")
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        response = await client.get(download_url, timeout=45.0)
+        response.raise_for_status()
+
+    excel_data = io.BytesIO(response.content)
+    df = pd.read_excel(excel_data, sheet_name=EXCEL_SHEET_NAME)
+    df.columns = [str(col).strip() for col in df.columns.tolist()]
+    return df
+
+
+def _validar_archivo(file: UploadFile) -> None:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No se recibio archivo.")
+
+    nombre = file.filename.lower()
+    if not (nombre.endswith(".xlsx") or nombre.endswith(".xls")):
+        raise HTTPException(status_code=400, detail="El archivo debe ser Excel (.xlsx o .xls).")
 
 
 @app.get("/")
 async def root():
     return {
         "message": "Gestion de Eventos API",
-        "version": "2.0.0",
-        "storage": "mongodb",
+        "version": "3.0.0",
+        "storage": "remote_excel",
         "docs": "/docs",
     }
 
@@ -90,18 +116,18 @@ async def root():
 @app.get("/health")
 async def health_check():
     try:
-        collection = _obtener_collection()
-        collection.estimated_document_count()
-        return {"status": "healthy", "storage": "mongodb"}
+        df = await _leer_excel_remoto()
+        return {"status": "healthy", "storage": "remote_excel", "rows": len(df)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"MongoDB no disponible: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Excel remoto no disponible: {str(e)}")
 
 
 @app.get("/api/datos")
 async def obtener_datos():
     try:
-        datos = _leer_todos()
-        columnas = list(datos[0].keys()) if datos else []
+        df = await _leer_excel_remoto()
+        columnas = df.columns.tolist()
+        datos = _normalizar_df(df, columnas)
         return {
             "success": True,
             "total": len(datos),
@@ -111,15 +137,14 @@ async def obtener_datos():
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error al obtener datos de MongoDB: {str(e)}")
+        logger.error(f"Error al obtener datos del Excel remoto: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error al obtener datos: {str(e)}")
 
 
 @app.get("/api/datos/excel")
 async def descargar_datos_excel():
     try:
-        datos = _leer_todos()
-        df = pd.DataFrame(datos)
+        df = await _leer_excel_remoto()
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="Registros")
@@ -127,7 +152,7 @@ async def descargar_datos_excel():
         return StreamingResponse(
             output,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": 'attachment; filename="registros_mongodb.xlsx"'},
+            headers={"Content-Disposition": 'attachment; filename="registros_excel_remoto.xlsx"'},
         )
     except Exception as e:
         logger.error(f"Error al exportar datos: {str(e)}")
@@ -137,61 +162,36 @@ async def descargar_datos_excel():
 @app.post("/api/datos/upload-excel")
 async def cargar_excel_diferencial(file: UploadFile = File(...)):
     try:
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="No se recibio archivo.")
-
-        nombre = file.filename.lower()
-        if not (nombre.endswith(".xlsx") or nombre.endswith(".xls")):
-            raise HTTPException(status_code=400, detail="El archivo debe ser Excel (.xlsx o .xls).")
+        _validar_archivo(file)
 
         contenido = await file.read()
         if not contenido:
             raise HTTPException(status_code=400, detail="El archivo Excel esta vacio.")
 
-        df_subido = pd.read_excel(io.BytesIO(contenido))
-        if len(df_subido.columns) == 0:
-            raise HTTPException(status_code=400, detail="No se encontraron columnas en el archivo.")
+        df_base = await _leer_excel_remoto()
+        columnas_base = df_base.columns.tolist()
+        base_norm = _normalizar_df(df_base, columnas_base)
 
-        columnas_subidas = [str(col).strip() for col in df_subido.columns.tolist()]
-        subido_norm = _normalizar_df(df_subido, columnas_subidas)
+        df_subido = pd.read_excel(io.BytesIO(contenido), sheet_name=EXCEL_SHEET_NAME)
+        df_subido.columns = [str(col).strip() for col in df_subido.columns.tolist()]
+        columnas_subidas = df_subido.columns.tolist()
 
-        collection = _obtener_collection()
-        base_docs = _leer_todos()
-
-        if not base_docs:
-            if subido_norm:
-                collection.insert_many(subido_norm)
-            return {
-                "success": True,
-                "message": "Base inicializada desde archivo Excel.",
-                "columns": columnas_subidas,
-                "summary": {
-                    "total_mongodb": 0,
-                    "total_subido": len(subido_norm),
-                    "insertados": len(subido_norm),
-                    "actualizados": 0,
-                    "sin_cambios": 0,
-                },
-                "data": subido_norm,
-            }
-
-        columnas_base = list(base_docs[0].keys())
         if columnas_subidas != columnas_base:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "El formato del archivo no coincide con el formato actual de la base de datos. "
+                    "El formato del archivo no coincide con el Excel base. "
                     f"Columnas esperadas: {columnas_base}. "
                     f"Columnas recibidas: {columnas_subidas}."
                 ),
             )
 
-        base_norm = [{col: str(doc.get(col, "")).strip() for col in columnas_base} for doc in base_docs]
+        subido_norm = _normalizar_df(df_subido, columnas_base)
         key_col = columnas_base[0]
-
         base_map = {row.get(key_col, ""): row for row in base_norm if row.get(key_col, "") != ""}
         subido_map = {row.get(key_col, ""): row for row in subido_norm if row.get(key_col, "") != ""}
 
+        merged_map = dict(base_map)
         insertados = 0
         actualizados = 0
         sin_cambios = 0
@@ -199,22 +199,22 @@ async def cargar_excel_diferencial(file: UploadFile = File(...)):
         for key, row_subido in subido_map.items():
             row_base = base_map.get(key)
             if row_base is None:
-                collection.insert_one(row_subido)
+                merged_map[key] = row_subido
                 insertados += 1
             elif row_base != row_subido:
-                collection.update_one({key_col: key}, {"$set": row_subido})
+                merged_map[key] = row_subido
                 actualizados += 1
             else:
                 sin_cambios += 1
 
-        datos_actualizados = _leer_todos()
+        datos_actualizados = list(merged_map.values())
         cambios_detectados = insertados + actualizados
         return {
             "success": True,
             "message": (
-                "Carga diferencial aplicada sobre MongoDB."
+                "Cambios detectados y aplicados en la vista. Para escribirlos en Drive se requiere API del proveedor."
                 if cambios_detectados > 0
-                else "No se detectaron cambios respecto a la base actual."
+                else "No se detectaron cambios respecto al Excel base."
             ),
             "columns": columnas_base,
             "summary": {
