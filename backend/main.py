@@ -2,8 +2,7 @@
 FastAPI backend para gestionar registros desde un Excel remoto.
 
 Soporta URLs publicas de OneDrive, Google Drive y Google Sheets publicado.
-La lectura funciona sin credenciales si el archivo tiene permisos de lectura.
-La escritura directa requiere configurar la API del proveedor.
+La escritura en Google Sheets se hace mediante un Web App de Google Apps Script.
 """
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
@@ -16,10 +15,7 @@ import os
 from typing import List, Dict, Any
 import logging
 import re
-import json
 from dotenv import load_dotenv
-from google.auth.transport.requests import Request
-from google.oauth2 import service_account
 
 load_dotenv()
 
@@ -82,36 +78,39 @@ def _url_descarga(url: str) -> str:
     return url
 
 
-def _google_auth_configurada() -> bool:
-    return bool(
-        os.getenv("GOOGLE_DRIVE_ACCESS_TOKEN", "").strip()
-        or os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
-        or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
-    )
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name, "").strip().lower()
+    if value == "":
+        return default
+    return value in {"1", "true", "yes", "si", "sí"}
+
+
+def _apps_script_configurada() -> bool:
+    return bool(os.getenv("GOOGLE_APPS_SCRIPT_URL", "").strip())
 
 
 async def _leer_excel_remoto() -> pd.DataFrame:
     excel_source_url = os.getenv("EXCEL_SOURCE_URL", "").strip()
-    sheet_name = os.getenv("EXCEL_SHEET_NAME", "").strip() or None
+    configured_sheet_name = os.getenv("EXCEL_SHEET_NAME", "").strip()
+    sheet_name = configured_sheet_name or 0
 
-    if "drive.google.com" in excel_source_url and _google_auth_configurada():
-        file_id = _google_file_id(excel_source_url)
-        logger.info(f"Descargando Excel desde Google Drive API: {file_id}")
-        content = await _descargar_google_drive_privado(file_id)
-    else:
-        download_url = _url_descarga(excel_source_url)
-        logger.info(f"Descargando Excel remoto: {download_url}")
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.get(download_url, timeout=45.0)
-            response.raise_for_status()
-        content = response.content
+    if _env_bool("GOOGLE_APPS_SCRIPT_READ") and _apps_script_configurada():
+        logger.info("Leyendo datos desde Google Apps Script")
+        return await _leer_apps_script()
+
+    download_url = _url_descarga(excel_source_url)
+    logger.info(f"Descargando Excel remoto: {download_url}")
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        response = await client.get(download_url, timeout=45.0)
+        response.raise_for_status()
+    content = response.content
 
     excel_data = io.BytesIO(content)
     try:
         df = pd.read_excel(excel_data, sheet_name=sheet_name)
     except ValueError as e:
-        if sheet_name and "Worksheet named" in str(e):
-            logger.warning(f"No se encontro la hoja '{sheet_name}'. Leyendo la primera hoja.")
+        if configured_sheet_name and "Worksheet named" in str(e):
+            logger.warning(f"No se encontro la hoja '{configured_sheet_name}'. Leyendo la primera hoja.")
             excel_data.seek(0)
             df = pd.read_excel(excel_data)
         else:
@@ -129,107 +128,82 @@ def _validar_archivo(file: UploadFile) -> None:
         raise HTTPException(status_code=400, detail="El archivo debe ser Excel (.xlsx o .xls).")
 
 
-def _crear_excel_bytes(registros: List[Dict[str, Any]], columnas: List[str]) -> bytes:
-    output = io.BytesIO()
-    df = pd.DataFrame(registros, columns=columnas)
-    sheet_name = os.getenv("EXCEL_SHEET_NAME", "").strip() or "Registros"
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name=sheet_name[:31])
-    output.seek(0)
-    return output.read()
-
-
-def _google_file_id(url: str) -> str:
-    configured_file_id = os.getenv("GOOGLE_DRIVE_FILE_ID", "").strip()
-    if configured_file_id:
-        return configured_file_id
-
-    google_file = re.search(r"drive\.google\.com/file/d/([^/]+)", url)
-    if google_file:
-        return google_file.group(1)
-
-    google_open = re.search(r"drive\.google\.com/open\?id=([^&]+)", url)
-    if google_open:
-        return google_open.group(1)
-
-    google_uc = re.search(r"[?&]id=([^&]+)", url)
-    if "drive.google.com" in url and google_uc:
-        return google_uc.group(1)
-
-    raise HTTPException(
-        status_code=500,
-        detail="No se pudo obtener GOOGLE_DRIVE_FILE_ID desde EXCEL_SOURCE_URL.",
-    )
-
-
-def _google_access_token() -> str:
-    access_token = os.getenv("GOOGLE_DRIVE_ACCESS_TOKEN", "").strip()
-    if access_token:
-        return access_token
-
-    service_account_file = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
-    service_account_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
-    scopes = [
-        scope.strip()
-        for scope in os.getenv("GOOGLE_DRIVE_SCOPES", "https://www.googleapis.com/auth/drive").split(",")
-        if scope.strip()
-    ]
-
-    if service_account_file:
-        credentials = service_account.Credentials.from_service_account_file(
-            service_account_file,
-            scopes=scopes,
+async def _leer_apps_script() -> pd.DataFrame:
+    script_url = os.getenv("GOOGLE_APPS_SCRIPT_URL", "").strip()
+    secret = os.getenv("GOOGLE_APPS_SCRIPT_SECRET", "").strip()
+    if not script_url:
+        raise HTTPException(
+            status_code=500,
+            detail="Falta GOOGLE_APPS_SCRIPT_URL en backend/.env.",
         )
-    elif service_account_json:
-        credentials = service_account.Credentials.from_service_account_info(
-            json.loads(service_account_json),
-            scopes=scopes,
+
+    params = {"secret": secret} if secret else None
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        response = await client.get(script_url, params=params, timeout=45.0)
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo leer desde Google Apps Script: {response.text}",
         )
-    else:
+
+    try:
+        payload = response.json()
+    except ValueError:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Google Apps Script no respondio JSON valido: {response.text}",
+        )
+
+    if payload.get("success") is False:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Google Apps Script rechazo la lectura: {payload.get('error', 'Error desconocido')}",
+        )
+
+    columns = payload.get("columns") or []
+    data = payload.get("data") or []
+    return pd.DataFrame(data, columns=columns)
+
+
+async def _guardar_google_sheets_apps_script(registros: List[Dict[str, Any]], columnas: List[str]) -> None:
+    script_url = os.getenv("GOOGLE_APPS_SCRIPT_URL", "").strip()
+    secret = os.getenv("GOOGLE_APPS_SCRIPT_SECRET", "").strip()
+    if not script_url:
         raise HTTPException(
             status_code=500,
             detail=(
-                "No se guardo en Google Drive porque falta autenticacion. "
-                "Configura GOOGLE_SERVICE_ACCOUNT_FILE, GOOGLE_SERVICE_ACCOUNT_JSON o GOOGLE_DRIVE_ACCESS_TOKEN."
+                "No se pudo guardar en Google Sheets porque falta GOOGLE_APPS_SCRIPT_URL "
+                "en backend/.env."
             ),
         )
 
-    credentials.refresh(Request())
-    return credentials.token
-
-
-async def _descargar_google_drive_privado(file_id: str) -> bytes:
-    token = _google_access_token()
-    headers = {"Authorization": f"Bearer {token}"}
-    download_url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        response = await client.get(download_url, headers=headers, timeout=60.0)
-    if response.status_code >= 400:
-        raise HTTPException(
-            status_code=500,
-            detail=f"No se pudo descargar el Excel desde Google Drive API: {response.text}",
-        )
-    return response.content
-
-
-async def _guardar_excel_google_drive(registros: List[Dict[str, Any]], columnas: List[str]) -> None:
-    source_url = os.getenv("EXCEL_SOURCE_URL", "").strip()
-    file_id = _google_file_id(source_url)
-    token = _google_access_token()
-    excel_bytes = _crear_excel_bytes(registros, columnas)
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    payload = {
+        "secret": secret,
+        "columns": columnas,
+        "data": registros,
     }
-    upload_url = f"https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media"
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        response = await client.patch(upload_url, headers=headers, content=excel_bytes, timeout=60.0)
+        response = await client.post(script_url, json=payload, timeout=60.0)
 
     if response.status_code >= 400:
         raise HTTPException(
             status_code=500,
-            detail=f"No se pudo guardar el Excel en Google Drive: {response.text}",
+            detail=f"No se pudo guardar en Google Sheets via Apps Script: {response.text}",
+        )
+
+    try:
+        result = response.json()
+    except ValueError:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Google Apps Script no respondio JSON valido al guardar: {response.text}",
+        )
+
+    if result.get("success") is False:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Google Apps Script rechazo la escritura: {result.get('error', 'Error desconocido')}",
         )
 
 
@@ -251,7 +225,7 @@ async def health_check():
             "status": "healthy",
             "storage": "remote_excel",
             "rows": len(df),
-            "google_drive_write_ready": _google_auth_configurada(),
+            "apps_script_write_ready": _apps_script_configurada(),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Excel remoto no disponible: {str(e)}")
@@ -307,11 +281,12 @@ async def cargar_excel_diferencial(file: UploadFile = File(...)):
         columnas_base = df_base.columns.tolist()
         base_norm = _normalizar_df(df_base, columnas_base)
 
-        sheet_name = os.getenv("EXCEL_SHEET_NAME", "").strip() or None
+        configured_sheet_name = os.getenv("EXCEL_SHEET_NAME", "").strip()
+        sheet_name = configured_sheet_name or 0
         try:
             df_subido = pd.read_excel(io.BytesIO(contenido), sheet_name=sheet_name)
         except ValueError as e:
-            if sheet_name and "Worksheet named" in str(e):
+            if configured_sheet_name and "Worksheet named" in str(e):
                 df_subido = pd.read_excel(io.BytesIO(contenido))
             else:
                 raise
@@ -352,12 +327,12 @@ async def cargar_excel_diferencial(file: UploadFile = File(...)):
         datos_actualizados = list(merged_map.values())
         cambios_detectados = insertados + actualizados
         if cambios_detectados > 0:
-            await _guardar_excel_google_drive(datos_actualizados, columnas_base)
+            await _guardar_google_sheets_apps_script(datos_actualizados, columnas_base)
 
         return {
             "success": True,
             "message": (
-                "Cambios guardados en el archivo de Google Drive."
+                "Cambios guardados en Google Sheets."
                 if cambios_detectados > 0
                 else "No se detectaron cambios respecto al Excel base."
             ),
