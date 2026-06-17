@@ -16,8 +16,10 @@ import os
 from typing import List, Dict, Any
 import logging
 import re
-import base64
+import json
 from dotenv import load_dotenv
+from google.auth.transport.requests import Request
+from google.oauth2 import service_account
 
 load_dotenv()
 
@@ -80,17 +82,31 @@ def _url_descarga(url: str) -> str:
     return url
 
 
+def _google_auth_configurada() -> bool:
+    return bool(
+        os.getenv("GOOGLE_DRIVE_ACCESS_TOKEN", "").strip()
+        or os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
+        or os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    )
+
+
 async def _leer_excel_remoto() -> pd.DataFrame:
     excel_source_url = os.getenv("EXCEL_SOURCE_URL", "").strip()
     sheet_name = os.getenv("EXCEL_SHEET_NAME", "").strip() or None
-    download_url = _url_descarga(excel_source_url)
-    logger.info(f"Descargando Excel remoto: {download_url}")
 
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        response = await client.get(download_url, timeout=45.0)
-        response.raise_for_status()
+    if "drive.google.com" in excel_source_url and _google_auth_configurada():
+        file_id = _google_file_id(excel_source_url)
+        logger.info(f"Descargando Excel desde Google Drive API: {file_id}")
+        content = await _descargar_google_drive_privado(file_id)
+    else:
+        download_url = _url_descarga(excel_source_url)
+        logger.info(f"Descargando Excel remoto: {download_url}")
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            response = await client.get(download_url, timeout=45.0)
+            response.raise_for_status()
+        content = response.content
 
-    excel_data = io.BytesIO(response.content)
+    excel_data = io.BytesIO(content)
     try:
         df = pd.read_excel(excel_data, sheet_name=sheet_name)
     except ValueError as e:
@@ -123,69 +139,97 @@ def _crear_excel_bytes(registros: List[Dict[str, Any]], columnas: List[str]) -> 
     return output.read()
 
 
-def _graph_share_id(url: str) -> str:
-    encoded = base64.urlsafe_b64encode(url.encode("utf-8")).decode("utf-8").rstrip("=")
-    return f"u!{encoded}"
+def _google_file_id(url: str) -> str:
+    configured_file_id = os.getenv("GOOGLE_DRIVE_FILE_ID", "").strip()
+    if configured_file_id:
+        return configured_file_id
+
+    google_file = re.search(r"drive\.google\.com/file/d/([^/]+)", url)
+    if google_file:
+        return google_file.group(1)
+
+    google_open = re.search(r"drive\.google\.com/open\?id=([^&]+)", url)
+    if google_open:
+        return google_open.group(1)
+
+    google_uc = re.search(r"[?&]id=([^&]+)", url)
+    if "drive.google.com" in url and google_uc:
+        return google_uc.group(1)
+
+    raise HTTPException(
+        status_code=500,
+        detail="No se pudo obtener GOOGLE_DRIVE_FILE_ID desde EXCEL_SOURCE_URL.",
+    )
 
 
-async def _resolver_onedrive_item(access_token: str) -> tuple[str, str]:
-    drive_id = os.getenv("ONEDRIVE_DRIVE_ID", "").strip()
-    item_id = os.getenv("ONEDRIVE_ITEM_ID", "").strip()
-    if drive_id and item_id:
-        return drive_id, item_id
+def _google_access_token() -> str:
+    access_token = os.getenv("GOOGLE_DRIVE_ACCESS_TOKEN", "").strip()
+    if access_token:
+        return access_token
 
-    source_url = os.getenv("EXCEL_SOURCE_URL", "").strip()
-    if not source_url:
-        raise HTTPException(status_code=500, detail="Falta EXCEL_SOURCE_URL para resolver el archivo de OneDrive.")
+    service_account_file = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
+    service_account_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    scopes = [
+        scope.strip()
+        for scope in os.getenv("GOOGLE_DRIVE_SCOPES", "https://www.googleapis.com/auth/drive").split(",")
+        if scope.strip()
+    ]
 
-    share_id = _graph_share_id(source_url)
-    headers = {"Authorization": f"Bearer {access_token}"}
-    graph_url = f"https://graph.microsoft.com/v1.0/shares/{share_id}/driveItem"
-
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        response = await client.get(graph_url, headers=headers, timeout=45.0)
-
-    if response.status_code >= 400:
-        raise HTTPException(
-            status_code=500,
-            detail=f"No se pudo resolver el archivo en OneDrive con Microsoft Graph: {response.text}",
+    if service_account_file:
+        credentials = service_account.Credentials.from_service_account_file(
+            service_account_file,
+            scopes=scopes,
         )
-
-    payload = response.json()
-    parent = payload.get("parentReference", {})
-    resolved_drive_id = parent.get("driveId")
-    resolved_item_id = payload.get("id")
-    if not resolved_drive_id or not resolved_item_id:
-        raise HTTPException(status_code=500, detail="Microsoft Graph no devolvio driveId/itemId del archivo.")
-    return resolved_drive_id, resolved_item_id
-
-
-async def _guardar_excel_onedrive(registros: List[Dict[str, Any]], columnas: List[str]) -> None:
-    access_token = os.getenv("ONEDRIVE_ACCESS_TOKEN", "").strip()
-    if not access_token:
+    elif service_account_json:
+        credentials = service_account.Credentials.from_service_account_info(
+            json.loads(service_account_json),
+            scopes=scopes,
+        )
+    else:
         raise HTTPException(
             status_code=500,
             detail=(
-                "No se guardo en OneDrive porque falta ONEDRIVE_ACCESS_TOKEN. "
-                "Se requiere un token delegado de Microsoft Graph con permiso Files.ReadWrite."
+                "No se guardo en Google Drive porque falta autenticacion. "
+                "Configura GOOGLE_SERVICE_ACCOUNT_FILE, GOOGLE_SERVICE_ACCOUNT_JSON o GOOGLE_DRIVE_ACCESS_TOKEN."
             ),
         )
 
-    drive_id, item_id = await _resolver_onedrive_item(access_token)
+    credentials.refresh(Request())
+    return credentials.token
+
+
+async def _descargar_google_drive_privado(file_id: str) -> bytes:
+    token = _google_access_token()
+    headers = {"Authorization": f"Bearer {token}"}
+    download_url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        response = await client.get(download_url, headers=headers, timeout=60.0)
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=500,
+            detail=f"No se pudo descargar el Excel desde Google Drive API: {response.text}",
+        )
+    return response.content
+
+
+async def _guardar_excel_google_drive(registros: List[Dict[str, Any]], columnas: List[str]) -> None:
+    source_url = os.getenv("EXCEL_SOURCE_URL", "").strip()
+    file_id = _google_file_id(source_url)
+    token = _google_access_token()
     excel_bytes = _crear_excel_bytes(registros, columnas)
     headers = {
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }
-    graph_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{item_id}/content"
+    upload_url = f"https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media"
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        response = await client.put(graph_url, headers=headers, content=excel_bytes, timeout=60.0)
+        response = await client.patch(upload_url, headers=headers, content=excel_bytes, timeout=60.0)
 
     if response.status_code >= 400:
         raise HTTPException(
             status_code=500,
-            detail=f"No se pudo guardar el Excel en OneDrive con Microsoft Graph: {response.text}",
+            detail=f"No se pudo guardar el Excel en Google Drive: {response.text}",
         )
 
 
@@ -207,7 +251,7 @@ async def health_check():
             "status": "healthy",
             "storage": "remote_excel",
             "rows": len(df),
-            "onedrive_write_ready": bool(os.getenv("ONEDRIVE_ACCESS_TOKEN", "").strip()),
+            "google_drive_write_ready": _google_auth_configurada(),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Excel remoto no disponible: {str(e)}")
@@ -308,12 +352,12 @@ async def cargar_excel_diferencial(file: UploadFile = File(...)):
         datos_actualizados = list(merged_map.values())
         cambios_detectados = insertados + actualizados
         if cambios_detectados > 0:
-            await _guardar_excel_onedrive(datos_actualizados, columnas_base)
+            await _guardar_excel_google_drive(datos_actualizados, columnas_base)
 
         return {
             "success": True,
             "message": (
-                "Cambios guardados en el archivo de OneDrive."
+                "Cambios guardados en el archivo de Google Drive."
                 if cambios_detectados > 0
                 else "No se detectaron cambios respecto al Excel base."
             ),
