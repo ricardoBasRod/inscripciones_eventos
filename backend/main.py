@@ -53,6 +53,29 @@ def _normalizar_df(df: pd.DataFrame, columnas: List[str]) -> List[Dict[str, Any]
     return resultado
 
 
+def _normalizar_columnas(columnas: List[str]) -> List[str]:
+    """Normaliza nombres de columnas reemplazando espacios especiales por espacios normales."""
+    resultado = []
+    for col in columnas:
+        # Reemplazar non-breaking spaces y otros espacios especiales por espacios normales
+        col_normalizado = col.replace('\xa0', ' ')  # non-breaking space
+        col_normalizado = col_normalizado.replace('\u2000', ' ')  # en quad
+        col_normalizado = col_normalizado.replace('\u2001', ' ')  # em quad
+        col_normalizado = col_normalizado.replace('\u2002', ' ')  # en space
+        col_normalizado = col_normalizado.replace('\u2003', ' ')  # em space
+        col_normalizado = col_normalizado.replace('\u2004', ' ')  # three-per-em space
+        col_normalizado = col_normalizado.replace('\u2005', ' ')  # four-per-em space
+        col_normalizado = col_normalizado.replace('\u2006', ' ')  # six-per-em space
+        col_normalizado = col_normalizado.replace('\u2007', ' ')  # figure space
+        col_normalizado = col_normalizado.replace('\u2008', ' ')  # punctuation space
+        col_normalizado = col_normalizado.replace('\u2009', ' ')  # thin space
+        col_normalizado = col_normalizado.replace('\u200a', ' ')  # hair space
+        # También normalizar múltiples espacios y saltos de línea especiales
+        col_normalizado = re.sub(r'\s+', ' ', col_normalizado).strip()
+        resultado.append(col_normalizado)
+    return resultado
+
+
 def _url_descarga(url: str) -> str:
     if not url:
         raise HTTPException(status_code=500, detail="Falta EXCEL_SOURCE_URL en backend/.env.")
@@ -278,7 +301,9 @@ async def cargar_excel_diferencial(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="El archivo Excel esta vacio.")
 
         df_base = await _leer_excel_remoto()
-        columnas_base = df_base.columns.tolist()
+        columnas_base_raw = df_base.columns.tolist()
+        columnas_base = _normalizar_columnas(columnas_base_raw)
+        df_base.columns = columnas_base
         base_norm = _normalizar_df(df_base, columnas_base)
 
         configured_sheet_name = os.getenv("EXCEL_SHEET_NAME", "").strip()
@@ -290,8 +315,9 @@ async def cargar_excel_diferencial(file: UploadFile = File(...)):
                 df_subido = pd.read_excel(io.BytesIO(contenido))
             else:
                 raise
-        df_subido.columns = [str(col).strip() for col in df_subido.columns.tolist()]
-        columnas_subidas = df_subido.columns.tolist()
+        columnas_subidas_raw = [str(col).strip() for col in df_subido.columns.tolist()]
+        columnas_subidas = _normalizar_columnas(columnas_subidas_raw)
+        df_subido.columns = columnas_subidas
 
         if columnas_subidas != columnas_base:
             raise HTTPException(

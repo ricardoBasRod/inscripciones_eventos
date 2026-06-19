@@ -33,6 +33,7 @@ export class AppComponent implements OnInit {
   isExporting = false;
   isUploading = false;
   searchTerm = '';
+  searchCourseTerm = '';
   tableData: Record<string, any>[] = [];
   columns: string[] = [];
   error: string | null = null;
@@ -145,21 +146,37 @@ export class AppComponent implements OnInit {
   }
 
   getFilteredRows(): Record<string, any>[] {
+    let filteredData = this.tableData;
+
+    // Filtro por nombre/matrícula
     const term = this.normalizeSearchValue(this.searchTerm.trim());
-    if (!term) {
-      return this.tableData;
+    if (term) {
+      const nombreCols = this.columns.filter(c => c.toLowerCase().includes('nombre'));
+      const matriculaCols = this.columns.filter(c => c.toLowerCase().includes('matricula'));
+      const targetCols = [...new Set([...nombreCols, ...matriculaCols])];
+      const colsToSearch = targetCols.length > 0 ? targetCols : this.columns;
+
+      filteredData = filteredData.filter((row) =>
+        colsToSearch.some((col) =>
+          this.normalizeSearchValue(String(row[col] ?? '')).includes(term)
+        )
+      );
     }
 
-    const nombreCols = this.columns.filter(c => c.toLowerCase().includes('nombre'));
-    const matriculaCols = this.columns.filter(c => c.toLowerCase().includes('matricula'));
-    const targetCols = [...new Set([...nombreCols, ...matriculaCols])];
-    const colsToSearch = targetCols.length > 0 ? targetCols : this.columns;
+    // Filtro por curso
+    const courseTerm = this.normalizeSearchValue(this.searchCourseTerm.trim());
+    if (courseTerm) {
+      const cursoCols = this.columns.filter(c => c.toLowerCase().includes('curso') || c.toLowerCase().includes('taller') || c.toLowerCase().includes('webinar'));
+      const colsToSearch = cursoCols.length > 0 ? cursoCols : this.columns;
 
-    return this.tableData.filter((row) =>
-      colsToSearch.some((col) =>
-        this.normalizeSearchValue(String(row[col] ?? '')).includes(term)
-      )
-    );
+      filteredData = filteredData.filter((row) =>
+        colsToSearch.some((col) =>
+          this.normalizeSearchValue(String(row[col] ?? '')).includes(courseTerm)
+        )
+      );
+    }
+
+    return filteredData;
   }
 
   shouldShowColumnToggle(column: string): boolean {
