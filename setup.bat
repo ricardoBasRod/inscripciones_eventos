@@ -87,13 +87,16 @@ echo ============================================================
 echo.
 echo Proximos pasos:
 echo.
-echo 1. Configura la URL de OneDrive en backend\.env
-echo    ONEDRIVE_URL=https://1drv.ms/x/c/...
+echo 1. Verifica el archivo Excel local en la raiz del proyecto:
+echo    database.xlsx
 echo.
-echo 2. Inicia el backend
+echo 2. Si cambias el nombre o ubicacion del archivo, actualiza backend\.env:
+echo    LOCAL_EXCEL_PATH=../database.xlsx
+echo.
+echo 3. Inicia el backend:
 echo    .\run-backend.bat
 echo.
-echo 3. Inicia el frontend en otra terminal
+echo 4. Inicia el frontend en otra terminal:
 echo    .\run-frontend.bat
 echo.
 pause

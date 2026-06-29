@@ -113,6 +113,112 @@ def _normalizar_columnas(columnas: List[str]) -> List[str]:
     return resultado
 
 
+def _texto_comparable(valor: Any) -> str:
+    if valor is None or pd.isna(valor):
+        return ""
+    texto = str(valor).strip().lower()
+    texto = re.sub(r"\s+", " ", texto)
+    return texto
+
+
+def _fecha_comparable(valor: Any) -> str:
+    if valor is None or pd.isna(valor):
+        return ""
+
+    texto = str(valor).strip()
+    if not texto:
+        return ""
+
+    fecha = pd.to_datetime(valor, errors="coerce", dayfirst=True)
+    if pd.isna(fecha):
+        fecha = pd.to_datetime(texto, errors="coerce")
+    if pd.isna(fecha):
+        return texto.split()[0].replace("/", "-").strip()
+
+    return fecha.strftime("%d-%m-%Y")
+
+
+def _buscar_columna(columnas: List[str], patrones: List[str]) -> str | None:
+    columnas_norm = {col: _texto_comparable(col) for col in columnas}
+    for patron in patrones:
+        patron_norm = _texto_comparable(patron)
+        for col, col_norm in columnas_norm.items():
+            if patron_norm in col_norm:
+                return col
+    return None
+
+
+def _columnas_duplicado(columnas: List[str]) -> Dict[str, str]:
+    completion_col = _buscar_columna(columnas, ["completion time"])
+    curso_col = _buscar_columna(columnas, ["en que curso", "en que curso, taller", "curso, taller", "curso"])
+    matricula_col = _buscar_columna(columnas, ["matricula", "matrícula", "nomina", "nómina"])
+    nombre_col = _buscar_columna(columnas, ["nombre completo", "name"])
+
+    faltantes = []
+    if not completion_col:
+        faltantes.append("Completion time")
+    if not curso_col:
+        faltantes.append("En que curso")
+    if not matricula_col and not nombre_col:
+        faltantes.append("Nombre o matricula")
+
+    if faltantes:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No se pudieron encontrar las columnas necesarias para validar duplicados: "
+                + ", ".join(faltantes)
+            ),
+        )
+
+    return {
+        "completion": completion_col,
+        "curso": curso_col,
+        "matricula": matricula_col or "",
+        "nombre": nombre_col or "",
+    }
+
+
+def _datos_duplicado(row: Dict[str, Any], columnas_dup: Dict[str, str]) -> Dict[str, str]:
+    return {
+        "fecha": _fecha_comparable(row.get(columnas_dup["completion"])),
+        "curso": _texto_comparable(row.get(columnas_dup["curso"])),
+        "matricula": _texto_comparable(row.get(columnas_dup["matricula"])) if columnas_dup["matricula"] else "",
+        "nombre": _texto_comparable(row.get(columnas_dup["nombre"])) if columnas_dup["nombre"] else "",
+    }
+
+
+def _es_misma_persona(a: Dict[str, str], b: Dict[str, str]) -> bool:
+    misma_matricula = bool(a["matricula"] and b["matricula"] and a["matricula"] == b["matricula"])
+    mismo_nombre = bool(a["nombre"] and b["nombre"] and a["nombre"] == b["nombre"])
+    return misma_matricula or mismo_nombre
+
+
+def _es_registro_duplicado(a: Dict[str, str], b: Dict[str, str]) -> bool:
+    return bool(
+        a["fecha"]
+        and b["fecha"]
+        and a["fecha"] == b["fecha"]
+        and a["curso"]
+        and b["curso"]
+        and a["curso"] == b["curso"]
+        and _es_misma_persona(a, b)
+    )
+
+
+def _buscar_duplicado(
+    row: Dict[str, Any],
+    registros: List[Dict[str, Any]],
+    columnas_dup: Dict[str, str],
+) -> Dict[str, Any] | None:
+    datos_row = _datos_duplicado(row, columnas_dup)
+    for registro in registros:
+        datos_registro = _datos_duplicado(registro, columnas_dup)
+        if _es_registro_duplicado(datos_row, datos_registro):
+            return registro
+    return None
+
+
 def _leer_excel_local() -> pd.DataFrame:
     path = _excel_path()
     if not path.exists():
@@ -258,46 +364,38 @@ async def cargar_excel_diferencial(file: UploadFile = File(...)):
             )
 
         subido_norm = _normalizar_df(df_subido, columnas_base)
-        key_col = columnas_base[0]
-        base_map = {row.get(key_col, ""): row for row in base_norm if row.get(key_col, "") != ""}
-        subido_map = {row.get(key_col, ""): row for row in subido_norm if row.get(key_col, "") != ""}
-
-        merged_map = dict(base_map)
+        columnas_dup = _columnas_duplicado(columnas_base)
+        datos_actualizados = list(base_norm)
         insertados = 0
-        actualizados = 0
-        sin_cambios = 0
+        duplicados = 0
 
-        for key, row_subido in subido_map.items():
-            row_base = base_map.get(key)
-            if row_base is None:
-                merged_map[key] = row_subido
+        for row_subido in subido_norm:
+            if _buscar_duplicado(row_subido, datos_actualizados, columnas_dup) is None:
+                datos_actualizados.append(row_subido)
                 insertados += 1
-            elif row_base != row_subido:
-                merged_map[key] = row_subido
-                actualizados += 1
             else:
-                sin_cambios += 1
+                duplicados += 1
 
-        datos_actualizados = list(merged_map.values())
-        cambios_detectados = insertados + actualizados
-        if cambios_detectados > 0:
+        if insertados > 0:
             _guardar_excel_local(datos_actualizados, columnas_base)
 
         return {
             "success": True,
             "message": (
                 "Cambios guardados en el Excel local."
-                if cambios_detectados > 0
-                else "No se detectaron cambios respecto al Excel base."
+                if insertados > 0
+                else "No se detectaron registros nuevos respecto al Excel base."
             ),
             "columns": columnas_base,
             "summary": {
                 "total_base": len(base_norm),
                 "total_subido": len(subido_norm),
                 "insertados": insertados,
-                "actualizados": actualizados,
-                "sin_cambios": sin_cambios,
-                "diferentes": cambios_detectados,
+                "actualizados": 0,
+                "sin_cambios": duplicados,
+                "duplicados": duplicados,
+                "diferentes": insertados,
+                "criterio_duplicado": "misma persona por nombre o matricula + mismo curso + misma fecha de Completion time",
             },
             "data": datos_actualizados,
         }
