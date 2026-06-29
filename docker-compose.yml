@@ -13,8 +13,10 @@ services:
       - DEBUG=True
       - HOST=0.0.0.0
       - PORT=8000
+      - LOCAL_EXCEL_PATH=/data/database.xlsx
     volumes:
       - ./backend:/app
+      - ./database.xlsx:/data/database.xlsx
     command: python main.py
     networks:
       - app-network
