@@ -24,9 +24,24 @@ if errorlevel 1 (
     exit /b 1
 )
 
+if exist "venv\Scripts\python.exe" (
+    venv\Scripts\python.exe --version >nul 2>nul
+    if errorlevel 1 (
+        echo   Entorno virtual roto o apuntando a un Python que ya no existe.
+        echo   Recreando entorno virtual...
+        rmdir /s /q venv
+    )
+)
+
 if not exist "venv\Scripts\python.exe" (
     echo   Creando entorno virtual...
     python -m venv venv
+    if errorlevel 1 (
+        py -3.14 -m venv venv
+    )
+    if errorlevel 1 (
+        py -3.13 -m venv venv
+    )
     if errorlevel 1 (
         py -3.11 -m venv venv
     )
