@@ -1,0 +1,74 @@
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Operación diaria</p>
+    <h1>Gestión de Eventos</h1>
+    <p class="page-description">Consulta, actualiza y descarga las inscripciones del Excel.</p>
+  </div>
+</section>
+
+<section class="content-section">
+  <div class="controls">
+    <button class="btn btn-primary" (click)="downloadExcel()" [disabled]="isLoading || isExporting || isUploading">
+      <span *ngIf="!isExporting">Descargar Excel</span>
+      <span *ngIf="isExporting">Descargando...</span>
+    </button>
+    <button class="btn btn-secondary" (click)="openFilePicker(excelInput)" [disabled]="isLoading || isExporting || isUploading">
+      <span *ngIf="!isUploading">Cargar archivo</span>
+      <span *ngIf="isUploading">Cargando...</span>
+    </button>
+    <input #excelInput type="file" accept=".xlsx,.xls" hidden (change)="onFileSelected($event)" />
+  </div>
+
+  <div *ngIf="error" class="error-message">{{ error }}</div>
+
+  <div *ngIf="loadSummary" class="table-container summary-container">
+    <h2>Resultado de carga</h2>
+    <table class="data-table">
+      <tbody>
+        <tr><th>Total base antes</th><td>{{ loadSummary.total_mongodb }}</td></tr>
+        <tr><th>Total subido</th><td>{{ loadSummary.total_subido }}</td></tr>
+        <tr><th>Insertados</th><td>{{ loadSummary.insertados }}</td></tr>
+        <tr><th>Actualizados</th><td>{{ loadSummary.actualizados }}</td></tr>
+        <tr><th>Sin cambios</th><td>{{ loadSummary.sin_cambios }}</td></tr>
+        <tr *ngIf="loadSummary.diferentes !== undefined"><th>Diferentes</th><td>{{ loadSummary.diferentes }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="isLoading" class="empty-state"><p>Cargando datos...</p></div>
+
+  <div *ngIf="!isLoading && tableData.length > 0" class="table-container">
+    <div class="section-title">
+      <div>
+        <p class="eyebrow">Archivo conectado</p>
+        <h2>Inscripciones</h2>
+      </div>
+      <span class="record-count">{{ tableData.length }} registros</span>
+    </div>
+    <div class="search-bar">
+      <input type="text" placeholder="Buscar por nombre o matrícula" [(ngModel)]="searchTerm" />
+      <input type="text" placeholder="Buscar por curso" [(ngModel)]="searchCourseTerm" />
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th *ngFor="let col of columns" [title]="col">
+            <div class="header-cell">
+              <span>{{ getColumnLabel(col) }}</span>
+              <button *ngIf="shouldShowColumnToggle(col)" class="col-toggle" (click)="toggleColumnExpansion(col)" type="button">
+                <span *ngIf="!isColumnExpanded(col)">+</span><span *ngIf="isColumnExpanded(col)">-</span>
+              </button>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of getFilteredRows()">
+          <td *ngFor="let col of columns">{{ row[col] }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="!isLoading && tableData.length === 0 && !error" class="empty-state"><p>No hay datos disponibles.</p></div>
+</section>
