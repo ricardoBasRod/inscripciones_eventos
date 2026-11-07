@@ -1,10 +1,18 @@
-<div class="app-shell">
+<div class="app-shell" [attr.data-theme]="selectedTheme">
   <header class="topbar">
     <a class="brand" routerLink="/gestion-eventos">Gestión de Eventos</a>
     <nav class="main-nav" aria-label="Navegación principal">
       <a routerLink="/gestion-eventos" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Gestión de Eventos</a>
       <a routerLink="/estadisticas" routerLinkActive="active">Estadísticas</a>
+      <a routerLink="/toma-asistencia" routerLinkActive="active">Toma de asistencia</a>
     </nav>
+    <div class="theme-picker">
+      <label for="theme-select">Diseño</label>
+      <select id="theme-select" [value]="selectedTheme" (change)="changeTheme($event)">
+        <option *ngFor="let theme of themes" [value]="theme.id">{{ theme.name }}</option>
+      </select>
+      <span class="theme-storage-message" role="status" aria-live="polite">{{ themeStorageMessage }}</span>
+    </div>
   </header>
   <main class="main-content"><router-outlet></router-outlet></main>
   <footer class="footer">Gestión de Eventos · Datos del Excel local</footer>

@@ -19,6 +19,12 @@ interface CargaResumen {
   sin_cambios: number;
 }
 
+export interface AsistenciaUpdate {
+  row_index: number;
+  attendance: 'Asistió' | 'No asistió';
+  notes: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -36,10 +42,22 @@ export class DataService {
     );
   }
 
-  downloadExcel(): Observable<Blob> {
-    return this.http.get(`${this.apiUrl}/datos/excel`, { responseType: 'blob' }).pipe(
+  downloadExcel(columns: string[], data: Record<string, any>[]): Observable<Blob> {
+    return this.http.post(`${this.apiUrl}/datos/excel`, { columns, data }, { responseType: 'blob' }).pipe(
       catchError(error => {
         console.error('Error descargando Excel:', error);
+        throw error;
+      })
+    );
+  }
+
+  saveAttendance(course: string, updates: AsistenciaUpdate[]): Observable<{ success: boolean; attendance_column: string; notes_column: string; updated: number }> {
+    return this.http.post<{ success: boolean; attendance_column: string; notes_column: string; updated: number }>(
+      `${this.apiUrl}/asistencia`,
+      { course, updates }
+    ).pipe(
+      catchError(error => {
+        console.error('Error guardando asistencia:', error);
         throw error;
       })
     );

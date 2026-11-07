@@ -1,6 +1,12 @@
 #!/bin/bash
 # Script simplificado para ejecutar Backend
-# Uso: bash run-backend.sh
+# Uso: bash run-backend.sh [--mock-data|--real-data]
+
+case "${1:-}" in
+    --mock-data) export USE_MOCK_DATA=true ;;
+    --real-data) export USE_MOCK_DATA=false ;;
+esac
+export USE_MOCK_DATA="${USE_MOCK_DATA:-false}"
 
 clear
 

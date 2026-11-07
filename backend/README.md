@@ -50,6 +50,34 @@ O usando uvicorn directamente:
 uvicorn main:app --reload
 ```
 
+### Usar datos de prueba
+
+El archivo `mock_data.xlsx` contiene registros sintéticos y conserva las
+columnas del Excel real. Para iniciar el backend con ese archivo:
+
+```powershell
+..\run-backend.bat --mock-data
+```
+
+En macOS o Linux:
+
+```bash
+bash ../run-backend.sh --mock-data
+```
+
+Para iniciar con el Excel real, usa `--real-data` o ejecuta los scripts sin
+argumentos. También se puede seleccionar la fuente para una ejecución directa:
+
+```powershell
+$env:USE_MOCK_DATA = "true"
+python main.py
+```
+
+`USE_MOCK_DATA` acepta `true`/`false`, `1`/`0`, `yes`/`no` y `on`/`off`.
+La ruta de los datos sintéticos se puede cambiar con `MOCK_EXCEL_PATH`; por
+defecto es `../mock_data.xlsx`. Al guardar asistencia o importar registros, los
+cambios se escriben en el archivo seleccionado.
+
 **Acceso:**
 - API: http://localhost:8000
 - Documentación interactiva: http://localhost:8000/docs

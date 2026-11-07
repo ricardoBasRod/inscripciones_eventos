@@ -1,0 +1,123 @@
+<section class="page-heading">
+  <div>
+    <p class="eyebrow">Operación diaria</p>
+    <h1>Toma de asistencia</h1>
+    <p class="page-description">Elige un curso y registra quién asistió. Los cambios se guardan en el Excel.</p>
+  </div>
+</section>
+
+<section class="content-section">
+  <div *ngIf="isLoading" class="empty-state"><p>Cargando cursos y registros...</p></div>
+  <div *ngIf="error" class="error-message" role="alert">{{ error }}</div>
+  <div *ngIf="savedMessage" class="success-message" role="status">{{ savedMessage }}</div>
+
+  <section *ngIf="!isLoading" class="attendance-panel">
+    <label for="course-search">Curso</label>
+    <div class="course-search">
+      <input
+        id="course-search"
+        type="text"
+        autocomplete="off"
+        placeholder="Busca y selecciona un curso"
+        [(ngModel)]="courseSearchTerm"
+        (ngModelChange)="onCourseSearchChange()"
+        (focus)="showCourseSuggestions = true; refreshCourseSuggestions()"
+        (blur)="showCourseSuggestions = false"
+        aria-autocomplete="list"
+        aria-controls="course-suggestions"
+      />
+      <ul *ngIf="showCourseSuggestions && courseSuggestions.length" id="course-suggestions" class="course-suggestions" role="listbox">
+        <li *ngFor="let course of courseSuggestions">
+          <button type="button" role="option" (mousedown)="$event.preventDefault()" (click)="chooseCourse(course)">{{ course }}</button>
+        </li>
+      </ul>
+      <p *ngIf="showCourseSuggestions && matchingCourseCount > courseSuggestions.length" class="suggestion-limit">
+        Mostrando {{ courseSuggestions.length }} de {{ matchingCourseCount }} cursos. Escribe para filtrar.
+      </p>
+      <p *ngIf="showCourseSuggestions && courseSearchTerm && matchingCourseCount === 0" class="suggestion-limit">
+        No hay cursos que coincidan con la búsqueda.
+      </p>
+    </div>
+    <p *ngIf="!courseColumn" class="data-warning">No se encontró una columna de curso en los registros.</p>
+    <p *ngIf="courseColumn && availableCourses.length === 0" class="data-warning">No hay cursos con registros disponibles.</p>
+  </section>
+
+  <section *ngIf="selectedCourse && courseRows.length" class="attendance-panel attendance-table-panel">
+    <div class="section-title">
+      <div>
+        <p class="eyebrow">Lista del curso</p>
+        <h2>{{ selectedCourse }}</h2>
+      </div>
+      <span class="record-count">{{ courseRows.length }} registros</span>
+    </div>
+    <div class="bulk-actions" aria-label="Acciones para todo el curso">
+      <span>Marcar a todos:</span>
+      <button type="button" class="bulk-present" (click)="setAllAttendance('Asistió')">Todos asistieron</button>
+      <button type="button" class="bulk-absent" (click)="setAllAttendance('No asistió')">Nadie asistió</button>
+    </div>
+    <div class="table-scroll">
+      <table class="attendance-table" [class.with-registration]="registrationColumn" [class.without-registration]="!registrationColumn">
+        <colgroup>
+          <col class="name-column">
+          <col *ngIf="registrationColumn" class="registration-column">
+          <col class="attendance-column">
+          <col class="notes-column">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th *ngIf="registrationColumn">Matrícula o nómina</th>
+            <th>Asistencia</th>
+            <th>Notas</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let item of visibleCourseRows">
+            <td>{{ getStudentName(item.row) }}</td>
+            <td *ngIf="registrationColumn">{{ getRegistration(item.row) }}</td>
+            <td class="attendance-choice-cell">
+              <div class="attendance-choice" [attr.aria-label]="'Asistencia de ' + getStudentName(item.row)">
+                <button
+                  type="button"
+                  class="choice-button present"
+                  [class.selected]="attendanceChoices[item.index] === 'Asistió'"
+                  [attr.aria-pressed]="attendanceChoices[item.index] === 'Asistió'"
+                  (click)="setAttendance(item.index, 'Asistió')"
+                >Asistió</button>
+                <button
+                  type="button"
+                  class="choice-button absent"
+                  [class.selected]="attendanceChoices[item.index] === 'No asistió'"
+                  [attr.aria-pressed]="attendanceChoices[item.index] === 'No asistió'"
+                  (click)="setAttendance(item.index, 'No asistió')"
+                >No asistió</button>
+              </div>
+            </td>
+            <td class="notes-cell">
+              <input
+                type="text"
+                [attr.aria-label]="'Notas de asistencia de ' + getStudentName(item.row)"
+                [(ngModel)]="attendanceNotes[item.index]"
+                placeholder="Agregar nota"
+              />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div *ngIf="totalPages > 1" class="pagination">
+      <span>Mostrando {{ firstVisibleRow }}–{{ lastVisibleRow }} de {{ courseRows.length }} registros</span>
+      <div>
+        <button type="button" (click)="setPage(currentPage - 1)" [disabled]="currentPage === 0">Anterior</button>
+        <span>Página {{ currentPage + 1 }} de {{ totalPages }}</span>
+        <button type="button" (click)="setPage(currentPage + 1)" [disabled]="currentPage + 1 >= totalPages">Siguiente</button>
+      </div>
+    </div>
+    <div class="attendance-actions">
+      <p *ngIf="pendingAttendanceCount">Falta marcar {{ pendingAttendanceCount }} registro(s) de asistencia.</p>
+      <button class="btn btn-primary" type="button" (click)="saveAttendance()" [disabled]="!canSave || isSaving">
+        {{ isSaving ? 'Guardando...' : 'Guardar asistencia' }}
+      </button>
+    </div>
+  </section>
+</section>

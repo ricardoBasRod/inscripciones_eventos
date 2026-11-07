@@ -1,6 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { DataService } from './services/data.service';
 
 interface DatosResponse {
@@ -24,11 +25,14 @@ interface CargaResumen {
 @Component({
   selector: 'app-event-management',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './event-management.component.html',
   styleUrls: ['./event-management.component.css']
 })
 export class EventManagementComponent implements OnInit {
+  @ViewChild('topScroll') topScroll?: ElementRef<HTMLDivElement>;
+  @ViewChild('tableScroll') tableScroll?: ElementRef<HTMLDivElement>;
+
   isLoading = false;
   isExporting = false;
   isUploading = false;
@@ -67,8 +71,9 @@ export class EventManagementComponent implements OnInit {
   downloadExcel(): void {
     this.isExporting = true;
     this.error = null;
+    const filteredRows = this.getFilteredRows();
 
-    this.dataService.downloadExcel().subscribe({
+    this.dataService.downloadExcel(this.columns, filteredRows).subscribe({
       next: (file: Blob) => {
         const blobUrl = window.URL.createObjectURL(file);
         const anchor = document.createElement('a');
@@ -84,6 +89,16 @@ export class EventManagementComponent implements OnInit {
         this.isExporting = false;
       }
     });
+  }
+
+  syncTableScroll(event: Event): void {
+    const source = event.target as HTMLDivElement;
+    if (this.tableScroll && this.tableScroll.nativeElement !== source) {
+      this.tableScroll.nativeElement.scrollLeft = source.scrollLeft;
+    }
+    if (this.topScroll && this.topScroll.nativeElement !== source) {
+      this.topScroll.nativeElement.scrollLeft = source.scrollLeft;
+    }
   }
 
   openFilePicker(fileInput: HTMLInputElement): void {
@@ -150,7 +165,10 @@ export class EventManagementComponent implements OnInit {
     const term = this.normalizeSearchValue(this.searchTerm.trim());
     if (term) {
       const nombreCols = this.columns.filter(c => c.toLowerCase().includes('nombre'));
-      const matriculaCols = this.columns.filter(c => c.toLowerCase().includes('matricula'));
+      const matriculaCols = this.columns.filter(c => {
+        const normalizedColumn = this.normalizeSearchValue(c);
+        return normalizedColumn.includes('matricula') || normalizedColumn.includes('nomina');
+      });
       const targetCols = [...new Set([...nombreCols, ...matriculaCols])];
       const colsToSearch = targetCols.length > 0 ? targetCols : this.columns;
       filteredData = filteredData.filter(row => colsToSearch.some(col =>

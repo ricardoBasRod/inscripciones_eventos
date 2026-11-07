@@ -1,0 +1,44 @@
+.page-heading{max-width:1180px;margin:auto;padding:1.5rem 1rem .75rem}
+.eyebrow{margin:0 0 .2rem;color:#b65c32;font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.page-heading h1{margin:0 0 .25rem;color:#24323d;font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.1}
+.page-description{margin:0;color:#64727a;font-size:.98rem}
+.content-section{max-width:1180px;margin:auto;padding:0 1rem 1.5rem}
+.attendance-panel{margin-bottom:.75rem;padding:.9rem;border:1px solid #d9dfdc;border-radius:.35rem;background:#fff}
+.attendance-panel>label{display:block;font-weight:700}
+.course-search{position:relative;max-width:650px}
+.course-search input,.notes-cell input{padding:.4rem .5rem;border:1px solid #c7d1cd;border-radius:.25rem;font:inherit}
+.course-search input{width:100%;padding:.55rem .7rem}
+.course-suggestions{position:absolute;z-index:3;top:calc(100% + .2rem);right:0;left:0;max-height:18rem;overflow:auto;padding:.25rem;border:1px solid #c7d1cd;background:#fff;list-style:none}
+.course-suggestions button{width:100%;padding:.65rem;border:0;background:#fff;color:#24323d;cursor:pointer;font:inherit;text-align:left}
+.section-title{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding-bottom:.45rem}
+.section-title h2{margin:0;color:#24323d;font-size:1.1rem}
+.bulk-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:.4rem;margin:0 0 .45rem}
+.bulk-actions button,.choice-button,.pagination button{padding:.35rem .55rem;border:1px solid #c7d1cd;border-radius:.25rem;background:#fff;color:#24323d;cursor:pointer;font:inherit;font-size:.82rem;font-weight:700}
+.bulk-actions .bulk-present{border-color:#b65c32;background:#b65c32;color:#fff}
+.bulk-actions .bulk-absent{border-color:#24323d;background:#24323d;color:#fff}
+.table-scroll{max-height:70vh;overflow:auto}
+.attendance-table{width:100%;min-width:900px;table-layout:fixed;border-collapse:collapse}
+.attendance-table.with-registration .name-column{width:32%}
+.attendance-table.with-registration .registration-column{width:20%}
+.attendance-table.with-registration .attendance-column{width:25%}
+.attendance-table.with-registration .notes-column{width:23%}
+.attendance-table.without-registration .name-column{width:45%}
+.attendance-table.without-registration .attendance-column{width:30%}
+.attendance-table.without-registration .notes-column{width:25%}
+.attendance-table th,.attendance-table td{padding:.4rem .8rem;border-bottom:1px solid #edf0ee;text-align:left}
+.attendance-table th{border-bottom:2px solid #d9dfdc;color:#40515b}
+.attendance-choice{display:flex;gap:.35rem}
+.notes-cell input{width:100%;min-width:120px}
+.choice-button.selected.present{border-color:#b65c32;background:#b65c32;color:#fff}
+.choice-button.selected.absent{border-color:#24323d;background:#24323d;color:#fff}
+.pagination{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.5rem 0;color:#64727a;font-size:.9rem}
+.pagination div{display:flex;align-items:center;gap:.5rem}
+.pagination button:disabled,.btn:disabled{cursor:not-allowed;opacity:.55}
+.attendance-actions{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding-top:.4rem}
+.attendance-actions p{margin:0;color:#64727a}
+.btn{padding:.55rem .9rem;border:0;border-radius:.35rem;background:#b65c32;color:#fff;cursor:pointer;font:inherit;font-weight:700}
+.error-message,.success-message,.data-warning{margin-bottom:.6rem;padding:.65rem .8rem;border-left:4px solid #b83b3b;background:#fff0ed;color:#8f2929}
+.success-message{border-color:#367a51;background:#edf8f0;color:#285e3c}
+.data-warning{margin:.6rem 0 0}
+.empty-state{padding:1.25rem 1rem;color:#64727a;text-align:center}
+@media(max-width:640px){.page-heading{padding:1rem .75rem .5rem}.content-section{padding:0 .75rem 1rem}.attendance-panel{padding:.75rem}.attendance-actions,.pagination{align-items:stretch;flex-direction:column}.attendance-actions .btn{width:100%}.pagination div{justify-content:space-between}.attendance-table th,.attendance-table td{padding:.4rem}.attendance-choice{gap:.25rem}.choice-button{padding:.35rem .45rem}}

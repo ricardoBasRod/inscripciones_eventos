@@ -1,132 +1,179 @@
 # Gestión de Eventos - Inscripciones
 
-Aplicación Angular para visualizar y gestionar inscripciones de eventos desde un archivo Excel en OneDrive.
+Aplicación web para gestionar inscripciones de eventos. El frontend está desarrollado con Angular y se comunica con una API FastAPI que lee y actualiza los datos del archivo Excel local `database.xlsx`.
 
-## Características
+Desde la pantalla principal puedes abrir la toma de asistencia, filtrar las inscripciones por curso y guardar para cada persona si asistió y sus notas. Al guardar, la API crea o actualiza las columnas `Asistencia` y `notas_asistencia` en el Excel local; las notas quedan al final de la tabla.
 
-- ✨ Interfaz moderna y responsiva
-- 📥 Botón para descargar datos desde OneDrive
-- 📊 Tabla dinámica para visualizar datos
-- 🎨 Diseño limpio y profesional
-- 📱 Compatible con dispositivos móviles
+## Requisitos previos
 
-## Requisitos Previos
+Instala estos programas antes de configurar el proyecto:
 
-Antes de comenzar, asegúrate de tener instalado:
+- **Windows 10/11** (para seguir la opción recomendada de esta guía).
+- **Python 3.11 o posterior**, con `pip` y el comando `python` o el lanzador `py` disponibles en PATH. El instalador de Python para Windows permite agregar Python al PATH.
+- **Node.js compatible con Angular 18**: Node.js 18.19.1 o posterior de la serie 18, 20.11.1 o posterior de la serie 20, o 22.0.0 o posterior de la serie 22. La instalación incluye `npm`.
+- **Git**, solo si vas a clonar el repositorio desde la terminal. Si descargaste el proyecto como ZIP, no es necesario.
+- **Conexión a Internet** durante la instalación de dependencias de Python y npm.
 
-- **Node.js** (versión 18 o superior) - [Descargar](https://nodejs.org/)
-- **npm** (incluido con Node.js)
-- **Angular CLI** (se instalará automáticamente con npm install)
+No es necesario instalar Angular CLI globalmente: se instala con las dependencias del frontend.
 
-## Instalación y Ejecución
+Comprueba las instalaciones desde PowerShell o Símbolo del sistema:
 
-### 1. Clonar el Repositorio
+```powershell
+python --version
+node --version
+npm --version
+```
 
-```bash
-git clone <URL_DEL_REPOSITORIO>
+Si `python` no está disponible, prueba `py --version`. El setup también contempla el lanzador `py`.
+
+## Obtener el código
+
+Si aún no tienes una copia local:
+
+```powershell
+git clone https://github.com/ricardoBasRod/inscripciones_eventos.git
 cd inscripciones_eventos
 ```
 
-### 2. Instalar Dependencias
+Si ya tienes el proyecto, abre PowerShell o Símbolo del sistema en la carpeta raíz del repositorio (la que contiene `setup.bat` y `start.bat`).
 
-```bash
-npm install
+## Opción recomendada para Windows
+
+1. Instala los requisitos previos indicados arriba.
+2. Desde la carpeta raíz del proyecto, configura el backend y el frontend:
+
+   ```powershell
+   .\setup.bat
+   ```
+
+   El script crea el entorno virtual de Python, instala `backend\requirements.txt`, crea `backend\.env` a partir de `backend\.env.example` si todavía no existe e instala las dependencias del frontend.
+3. Cuando termine el setup, inicia ambos servicios:
+
+   ```powershell
+   .\start.bat
+   ```
+
+   Se abrirá una ventana para cada servicio. La aplicación estará disponible en:
+
+   - Frontend: <http://localhost:4200>
+   - API: <http://localhost:8000>
+   - Documentación interactiva de la API: <http://localhost:8000/docs>
+
+   Para detenerlos, cierra las ventanas de backend y frontend.
+
+El backend usa por defecto el archivo `database.xlsx` ubicado en la raíz del proyecto. Comprueba que esté presente. La configuración de esa ruta está en `backend\.env` mediante `LOCAL_EXCEL_PATH`; no se necesita configurar OneDrive para el funcionamiento actual.
+
+## Probar con datos mock
+
+El archivo `mock_data.xlsx` contiene registros sintéticos y mantiene las mismas columnas que el Excel real. Para iniciar backend y frontend usando esos datos, ejecuta desde la raíz del proyecto:
+
+```powershell
+.\start.bat --mock-data
 ```
 
-Este comando descargará e instalará todas las dependencias necesarias incluyendo Angular, TypeScript y otras librerías requeridas.
+Si quieres iniciar solo el backend con los mocks:
 
-### 3. Ejecutar la Aplicación
+```powershell
+.\run-backend.bat --mock-data
+```
 
-```bash
+Sin `--mock-data`, los scripts usan `database.xlsx`. El archivo `mock_upload.xlsx` sirve para probar la carga diferencial: contiene 10 filas con el formato del Excel, cuatro que ya existen en los mocks y seis nuevas.
+
+## Ejecutar los servicios por separado en Windows
+
+Después de ejecutar `.\setup.bat`, puedes iniciar cada servicio por separado. Abre dos terminales en la raíz del proyecto:
+
+**Terminal 1 — backend:**
+
+```powershell
+.\run-backend.bat
+```
+
+**Terminal 2 — frontend:**
+
+```powershell
+.\run-frontend.bat
+```
+
+También puedes ejecutarlos directamente, sin los scripts auxiliares:
+
+**Backend** (desde la raíz del proyecto):
+
+```powershell
+.\backend\venv\Scripts\python.exe .\backend\main.py
+```
+
+**Frontend**:
+
+```powershell
+cd frontend
 npm start
 ```
 
-La aplicación se abrirá automáticamente en tu navegador en `http://localhost:4200/`.
+El frontend requiere que el backend esté iniciado para cargar y guardar datos.
+
+## Instalación y ejecución manuales
+
+Si prefieres no usar los scripts, desde la raíz del proyecto prepara cada parte:
+
+**Backend — PowerShell:**
+
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+.\venv\Scripts\python.exe main.py
+```
+
+**Frontend — en otra terminal, desde la raíz del proyecto:**
+
+```powershell
+cd frontend
+npm install
+npm start
+```
+
+En macOS o Linux, puedes preparar e iniciar los servicios manualmente así:
+
+**Backend — terminal 1:**
+
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+if [ ! -f .env ]; then cp .env.example .env; fi
+python main.py
+```
+
+**Frontend — terminal 2, desde la raíz del proyecto:**
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+Los comandos crean `.env` solo si todavía no existe, para conservar una configuración previa.
 
 ## Desarrollo
 
-### Servir la aplicación en desarrollo
+Desde `frontend`, `npm start` inicia Angular con recarga automática. Para crear una compilación de producción:
 
 ```bash
-ng serve
+cd frontend
+npm run build
 ```
 
-Accede a `http://localhost:4200/` en tu navegador. La aplicación se recargará automáticamente si cambias alguno de los archivos del código.
+Los archivos generados se guardan en `frontend/dist/gestion-eventos-app/`.
 
-### Generar una compilación para producción
+La API se ejecuta desde `backend` con `python main.py`; sus endpoints de documentación están en <http://localhost:8000/docs>.
 
-```bash
-ng build
-```
+## Solución de problemas
 
-Los archivos compilados se guardarán en el directorio `dist/`.
-
-### Ejecutar pruebas unitarias
-
-```bash
-ng test
-```
-
-Se abrirá Karma y ejecutará los tests.
-
-## Estructura del Proyecto
-
-```
-inscripciones_eventos/
-├── src/
-│   ├── app/
-│   │   ├── services/
-│   │   │   └── data.service.ts       # Servicio para manejar datos
-│   │   ├── app.component.ts          # Componente principal
-│   │   ├── app.component.html        # Template del componente
-│   │   ├── app.component.css         # Estilos del componente
-│   │   └── app.routes.ts             # Rutas de la aplicación
-│   ├── assets/                       # Archivos estáticos
-│   ├── main.ts                       # Archivo de entrada
-│   ├── index.html                    # HTML principal
-│   └── styles.css                    # Estilos globales
-├── angular.json                      # Configuración de Angular CLI
-├── tsconfig.json                     # Configuración de TypeScript
-├── karma.conf.js                     # Configuración de pruebas
-├── package.json                      # Dependencias del proyecto
-└── README.md                         # Este archivo
-```
-
-## Próximas Mejoras
-
-- [ ] Integración con OneDrive API
-- [ ] Implementar lectura de archivos Excel
-- [ ] Agregar filtros y búsqueda en la tabla
-- [ ] Exportar datos a diferentes formatos
-- [ ] Autenticación con Microsoft 365
-- [ ] Paginación de datos
-
-## Tecnologías Utilizadas
-
-- **Angular 18** - Framework frontend
-- **TypeScript** - Lenguaje de programación
-- **RxJS** - Programación reactiva
-- **Bootstrap & CSS** - Estilos
-
-## Solución de Problemas
-
-### Error: "npm: command not found"
-Asegúrate de tener Node.js instalado correctamente. Descárgalo desde [nodejs.org](https://nodejs.org/)
-
-### Error: "ng: command not found"
-Ejecuta `npm install -g @angular/cli` para instalar Angular CLI globalmente.
-
-### Error de permisos
-En Mac/Linux, puede que necesites ejecutar `sudo npm install` dependiendo de tu configuración.
-
-## Contribuir
-
-Si encuentras algún problema o tienes sugerencias, por favor abre un issue o pull request.
-
-## Licencia
-
-Este proyecto está bajo la licencia MIT.
-
-## Contacto
-
-Para más información o preguntas, contacta al equipo de desarrollo.
+- **`python` no se reconoce:** reinstala Python y habilita la opción para agregarlo al PATH, o verifica que el lanzador `py` esté instalado. El backend necesita Python 3.11 o posterior.
+- **`node` o `npm` no se reconocen:** instala una versión compatible de Node.js y vuelve a abrir la terminal.
+- **No se encuentra el entorno virtual o `node_modules`:** ejecuta primero `.\setup.bat` desde la raíz del proyecto.
+- **La API indica que no existe el Excel:** comprueba que `database.xlsx` esté en la raíz o ajusta `LOCAL_EXCEL_PATH` en `backend\.env`.
+- **El frontend no carga los datos:** confirma que el backend esté activo en el puerto 8000 y que el Excel esté disponible.

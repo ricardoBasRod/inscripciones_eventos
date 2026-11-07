@@ -1,6 +1,12 @@
 #!/bin/bash
 # Script para iniciar Backend y Frontend simultáneamente en Unix/Linux/Mac
 
+case "${1:-}" in
+    --mock-data) export USE_MOCK_DATA=true ;;
+    --real-data) export USE_MOCK_DATA=false ;;
+esac
+export USE_MOCK_DATA="${USE_MOCK_DATA:-false}"
+
 clear
 
 echo ""

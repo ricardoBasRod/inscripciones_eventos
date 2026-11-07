@@ -49,25 +49,30 @@
       <input type="text" placeholder="Buscar por nombre o matrícula" [(ngModel)]="searchTerm" />
       <input type="text" placeholder="Buscar por curso" [(ngModel)]="searchCourseTerm" />
     </div>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th *ngFor="let col of columns" [title]="col">
-            <div class="header-cell">
-              <span>{{ getColumnLabel(col) }}</span>
-              <button *ngIf="shouldShowColumnToggle(col)" class="col-toggle" (click)="toggleColumnExpansion(col)" type="button">
-                <span *ngIf="!isColumnExpanded(col)">+</span><span *ngIf="isColumnExpanded(col)">-</span>
-              </button>
-            </div>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let row of getFilteredRows()">
-          <td *ngFor="let col of columns">{{ row[col] }}</td>
-        </tr>
-      </tbody>
-    </table>
+    <div #topScroll class="top-scroll" (scroll)="syncTableScroll($event)" aria-label="Desplazamiento horizontal de la tabla">
+      <div class="top-scroll-spacer"></div>
+    </div>
+    <div #tableScroll class="table-scroll" (scroll)="syncTableScroll($event)">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th *ngFor="let col of columns" [title]="col">
+              <div class="header-cell">
+                <span>{{ getColumnLabel(col) }}</span>
+                <button *ngIf="shouldShowColumnToggle(col)" class="col-toggle" (click)="toggleColumnExpansion(col)" type="button">
+                  <span *ngIf="!isColumnExpanded(col)">+</span><span *ngIf="isColumnExpanded(col)">-</span>
+                </button>
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let row of getFilteredRows()">
+            <td *ngFor="let col of columns">{{ row[col] }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <div *ngIf="!isLoading && tableData.length === 0 && !error" class="empty-state"><p>No hay datos disponibles.</p></div>

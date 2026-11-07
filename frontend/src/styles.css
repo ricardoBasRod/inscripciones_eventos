@@ -19,6 +19,233 @@ body {
   line-height: 1.5;
 }
 
+.app-shell[data-theme='bosque'] {
+  --theme-bg: #f4f6f3;
+  --theme-surface: #fff;
+  --theme-header: rgba(255, 255, 255, 0.96);
+  --theme-text: #24323d;
+  --theme-muted: #64727a;
+  --theme-accent: #b65c32;
+  --theme-accent-strong: #9a4827;
+  --theme-secondary: #24323d;
+  --theme-soft: #eef2ef;
+  --theme-hover: #f8faf8;
+  --theme-active: #fff2ec;
+  --theme-border: #d9dfdc;
+  --theme-line: #edf0ee;
+  --theme-radius: 0.35rem;
+  --theme-shadow: 0 8px 24px rgba(37, 50, 61, 0.06);
+  --theme-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.app-shell[data-theme='oceano'] {
+  --theme-bg: #eef5f8;
+  --theme-surface: #fff;
+  --theme-header: rgba(255, 255, 255, 0.97);
+  --theme-text: #17364b;
+  --theme-muted: #527181;
+  --theme-accent: #087e9b;
+  --theme-accent-strong: #075d76;
+  --theme-secondary: #17455d;
+  --theme-soft: #dceef3;
+  --theme-hover: #f2fafb;
+  --theme-active: #dff3f7;
+  --theme-border: #c5dce3;
+  --theme-line: #e4eff2;
+  --theme-radius: 0.8rem;
+  --theme-shadow: 0 10px 28px rgba(23, 74, 96, 0.1);
+  --theme-font: 'Trebuchet MS', Arial, sans-serif;
+}
+
+.app-shell[data-theme='lavanda'] {
+  --theme-bg: #f6f2fa;
+  --theme-surface: #fff;
+  --theme-header: rgba(255, 255, 255, 0.97);
+  --theme-text: #392e4e;
+  --theme-muted: #746b84;
+  --theme-accent: #8056a8;
+  --theme-accent-strong: #624084;
+  --theme-secondary: #4a3b61;
+  --theme-soft: #eee7f5;
+  --theme-hover: #faf7fc;
+  --theme-active: #f0e7f8;
+  --theme-border: #ded2e9;
+  --theme-line: #f0ebf4;
+  --theme-radius: 1rem;
+  --theme-shadow: 0 12px 30px rgba(69, 48, 91, 0.09);
+  --theme-font: 'Segoe UI', sans-serif;
+}
+
+.app-shell[data-theme='coral'] {
+  --theme-bg: #fff5f0;
+  --theme-surface: #fffdfb;
+  --theme-header: rgba(255, 253, 251, 0.97);
+  --theme-text: #4a302b;
+  --theme-muted: #81635b;
+  --theme-accent: #d64f3d;
+  --theme-accent-strong: #a9362a;
+  --theme-secondary: #583b34;
+  --theme-soft: #fae7df;
+  --theme-hover: #fff8f4;
+  --theme-active: #ffe8df;
+  --theme-border: #ecd1c6;
+  --theme-line: #f4e5df;
+  --theme-radius: 0.15rem;
+  --theme-shadow: 0 5px 16px rgba(116, 62, 47, 0.1);
+  --theme-font: Georgia, 'Times New Roman', serif;
+}
+
+.app-shell[data-theme='nocturno'] {
+  --theme-bg: #161d2a;
+  --theme-surface: #222c3c;
+  --theme-header: rgba(27, 37, 52, 0.98);
+  --theme-text: #ecf1f7;
+  --theme-muted: #aab8ca;
+  --theme-accent: #58c4c0;
+  --theme-accent-strong: #8ce0d9;
+  --theme-secondary: #35445a;
+  --theme-soft: #2e3b4e;
+  --theme-hover: #29364a;
+  --theme-active: #263d4c;
+  --theme-border: #3a4a60;
+  --theme-line: #344257;
+  --theme-radius: 0.55rem;
+  --theme-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
+  --theme-font: 'Segoe UI', sans-serif;
+}
+
+.app-shell[data-theme] {
+  background: var(--theme-bg);
+  color: var(--theme-text);
+  font-family: var(--theme-font);
+}
+
+.app-shell[data-theme] .topbar,
+.app-shell[data-theme] .footer {
+  border-color: var(--theme-border);
+  background: var(--theme-header);
+  color: var(--theme-muted);
+}
+
+.app-shell[data-theme] .brand,
+.app-shell[data-theme] .main-nav a:hover {
+  color: var(--theme-text);
+}
+
+.app-shell[data-theme] .main-nav a {
+  color: var(--theme-muted);
+}
+
+.app-shell[data-theme] .main-nav a:hover {
+  background: var(--theme-soft);
+}
+
+.app-shell[data-theme] .main-nav a.active {
+  border-bottom-color: var(--theme-accent);
+  background: var(--theme-active);
+  color: var(--theme-accent-strong);
+}
+
+.app-shell[data-theme] .theme-picker,
+.app-shell[data-theme] .page-description,
+.app-shell[data-theme] .record-count,
+.app-shell[data-theme] .stat-label,
+.app-shell[data-theme] .stat-note,
+.app-shell[data-theme] .progress-caption,
+.app-shell[data-theme] .pagination,
+.app-shell[data-theme] .attendance-actions p,
+.app-shell[data-theme] .empty-state {
+  color: var(--theme-muted);
+}
+
+.app-shell[data-theme] .theme-picker select,
+.app-shell[data-theme] input,
+.app-shell[data-theme] select,
+.app-shell[data-theme] .course-suggestions,
+.app-shell[data-theme] .course-suggestions button,
+.app-shell[data-theme] .bulk-actions button,
+.app-shell[data-theme] .choice-button,
+.app-shell[data-theme] .pagination button,
+.app-shell[data-theme] .col-toggle {
+  border-color: var(--theme-border);
+  border-radius: var(--theme-radius);
+  background-color: var(--theme-surface);
+  color: var(--theme-text);
+}
+
+.app-shell[data-theme] :is(h1, h2, .section-title h2, .table-container h2, .summary-panel h2, .panel-heading h2, .stat-card strong, .bar-row strong, .ranking-row strong, .career-area-toggle) {
+  color: var(--theme-text);
+}
+
+.app-shell[data-theme] .eyebrow,
+.app-shell[data-theme] .accumulated-number,
+.app-shell[data-theme] .bar-fill.warm {
+  color: var(--theme-accent);
+}
+
+.app-shell[data-theme] :is(.table-container, .summary-panel, .panel, .stat-card, .attendance-panel) {
+  border-color: var(--theme-border);
+  border-radius: var(--theme-radius);
+  background-color: var(--theme-surface);
+  box-shadow: var(--theme-shadow);
+}
+
+.app-shell[data-theme] .stat-card {
+  border-top-color: var(--theme-secondary);
+}
+
+.app-shell[data-theme] .stat-card-accent {
+  border-top-color: var(--theme-accent);
+}
+
+.app-shell[data-theme] :is(.data-table thead, .data-table th, .stats-table th) {
+  background: var(--theme-soft);
+  color: var(--theme-text);
+}
+
+.app-shell[data-theme] :is(.data-table th, .data-table td, .stats-table th, .stats-table td, .attendance-table th, .attendance-table td) {
+  border-color: var(--theme-line);
+}
+
+.app-shell[data-theme] :is(.attendance-table th, .bar-row, .ranking-row, .stats-table) {
+  color: var(--theme-muted);
+}
+
+.app-shell[data-theme] .data-table tbody tr:hover,
+.app-shell[data-theme] .expandable-career-row {
+  background: var(--theme-hover);
+}
+
+.app-shell[data-theme] :is(.btn-primary, .attendance-actions .btn, .choice-button.selected.present, .bulk-actions .bulk-present) {
+  background: var(--theme-accent);
+  color: #fff;
+}
+
+.app-shell[data-theme] :is(.btn-secondary, .choice-button.selected.absent, .bulk-actions .bulk-absent) {
+  background: var(--theme-secondary);
+  color: #fff;
+}
+
+.app-shell[data-theme] :is(.progress-track, .bar-track) {
+  background: var(--theme-soft);
+}
+
+.app-shell[data-theme] :is(.progress-bar, .bar-fill) {
+  background: var(--theme-secondary);
+}
+
+.app-shell[data-theme] .bar-fill.warm {
+  background: var(--theme-accent);
+}
+
+.app-shell[data-theme] .career-area-toggle:hover {
+  color: var(--theme-accent-strong);
+}
+
+.app-shell[data-theme] :is(input, select, button, a):focus-visible {
+  outline-color: var(--theme-accent);
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

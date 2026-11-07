@@ -14,7 +14,7 @@
       <article class="stat-card stat-card-accent"><span class="stat-label">Asistencia global</span><strong>{{ attendanceAvailable ? (globalAttendanceRate | number:'1.0-1') + '%' : 'N/D' }}</strong><span class="stat-note">{{ attendedTotal }} asistentes de {{ tableData.length }} inscritos</span></article>
       <article class="stat-card"><span class="stat-label">Inscritos en el periodo</span><strong>{{ accumulatedTotal }}</strong><span class="stat-note">Rango seleccionado</span></article>
       <article class="stat-card"><span class="stat-label">Cursos</span><strong>{{ courses.length }}</strong><span class="stat-note">Cursos con inscripciones</span></article>
-      <article class="stat-card"><span class="stat-label">Carreras</span><strong>{{ careerStats.length }}</strong><span class="stat-note">Categorías detectadas</span></article>
+      <article class="stat-card"><span class="stat-label">Áreas y grupos</span><strong>{{ careerStats.length }}</strong><span class="stat-note">Estudiantes y colaboradores externos</span></article>
     </div>
     <p *ngIf="!attendanceAvailable" class="data-warning">No se detectó una columna de asistencia. Para calcular porcentajes agrega un encabezado que contenga “asistencia”, “asistió”, “presencia” o “attended”.</p>
     <section class="panel">
@@ -28,12 +28,43 @@
       <div class="monthly-table-wrap"><table class="stats-table"><thead><tr><th>Curso</th><th>Mes</th><th>Inscritos</th></tr></thead><tbody><tr *ngFor="let item of rankingStats"><td>{{ item.course }}</td><td>{{ item.month }}</td><td>{{ item.total }}</td></tr></tbody></table></div>
     </section>
     <section class="panel">
-      <div class="panel-heading"><div><p class="eyebrow">Acumulado</p><h2>Inscripciones entre fechas</h2></div><div class="date-controls"><label>Desde<input type="date" [(ngModel)]="fromDate"></label><label>Hasta<input type="date" [(ngModel)]="toDate"></label></div></div>
+      <div class="panel-heading"><div><p class="eyebrow">Acumulado</p><h2>Inscripciones entre fechas</h2></div><div class="date-controls"><label>Desde<input type="date" [(ngModel)]="fromDate" (ngModelChange)="refreshStatistics()"></label><label>Hasta<input type="date" [(ngModel)]="toDate" (ngModelChange)="refreshStatistics()"></label></div></div>
       <div class="accumulated-number">{{ accumulatedTotal }} <span>inscripciones</span></div><p class="progress-caption">{{ fromDate || 'Inicio' }} hasta {{ toDate || 'hoy' }} · Fecha usada: {{ dateRangeLabel }}</p>
     </section>
     <section class="panel">
-      <div class="panel-heading"><div><p class="eyebrow">Asistencia por carrera</p><h2>Inscritos y porcentaje que asiste</h2></div></div>
-      <div class="monthly-table-wrap"><table class="stats-table"><thead><tr><th>Carrera</th><th>Inscritos</th><th>Asistieron</th><th>Asistencia</th></tr></thead><tbody><tr *ngFor="let item of careerStats"><td>{{ item.career }}</td><td>{{ item.registered }}</td><td>{{ attendanceAvailable ? item.attended : 'N/D' }}</td><td><span *ngIf="attendanceAvailable">{{ item.attendanceRate | number:'1.0-1' }}%</span><span *ngIf="!attendanceAvailable">N/D</span></td></tr></tbody></table></div>
+      <div class="panel-heading"><div><p class="eyebrow">Asistencia por carrera</p><h2>Inscritos y porcentaje que asiste por área</h2></div></div>
+      <div class="monthly-table-wrap">
+        <table class="stats-table">
+          <thead>
+            <tr><th>Área o grupo</th><th>Inscritos</th><th>Asistieron</th><th>Asistencia</th></tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let item of careerStats">
+              <tr [class.expandable-career-row]="isCareerArea(item.career)">
+                <td>
+                  <button
+                    *ngIf="isCareerArea(item.career)"
+                    type="button"
+                    class="career-area-toggle"
+                    [attr.aria-expanded]="expandedCareerAreas.has(item.career)"
+                    (click)="toggleCareerArea(item.career)"
+                  >{{ expandedCareerAreas.has(item.career) ? '▼' : '▶' }} {{ item.career }}</button>
+                  <span *ngIf="!isCareerArea(item.career)">{{ item.career }}</span>
+                </td>
+                <td>{{ item.registered }}</td>
+                <td>{{ attendanceAvailable ? item.attended : 'N/D' }}</td>
+                <td><span *ngIf="attendanceAvailable">{{ item.attendanceRate | number:'1.0-1' }}%</span><span *ngIf="!attendanceAvailable">N/D</span></td>
+              </tr>
+              <tr *ngFor="let career of careersForArea(item.career)" class="career-detail-row">
+                <td>{{ career.career }}</td>
+                <td>{{ career.registered }}</td>
+                <td>{{ attendanceAvailable ? career.attended : 'N/D' }}</td>
+                <td><span *ngIf="attendanceAvailable">{{ career.attendanceRate | number:'1.0-1' }}%</span><span *ngIf="!attendanceAvailable">N/D</span></td>
+              </tr>
+            </ng-container>
+          </tbody>
+        </table>
+      </div>
     </section>
   </ng-container>
 </section>

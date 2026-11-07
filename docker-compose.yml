@@ -14,9 +14,12 @@ services:
       - HOST=0.0.0.0
       - PORT=8000
       - LOCAL_EXCEL_PATH=/data/database.xlsx
+      - MOCK_EXCEL_PATH=/data/mock_data.xlsx
+      - USE_MOCK_DATA=${USE_MOCK_DATA:-false}
     volumes:
       - ./backend:/app
       - ./database.xlsx:/data/database.xlsx
+      - ./mock_data.xlsx:/data/mock_data.xlsx
     command: python main.py
     networks:
       - app-network

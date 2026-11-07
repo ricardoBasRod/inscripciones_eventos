@@ -13,7 +13,7 @@ import os
 import re
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from openpyxl import load_workbook
@@ -48,11 +48,24 @@ app.add_middleware(
 
 
 def _excel_path() -> Path:
-    configured_path = os.getenv("LOCAL_EXCEL_PATH", "../database.xlsx").strip() or "../database.xlsx"
+    use_mock_data = _uses_mock_data()
+    if use_mock_data:
+        configured_path = os.getenv("MOCK_EXCEL_PATH", "../mock_data.xlsx").strip() or "../mock_data.xlsx"
+    else:
+        configured_path = os.getenv("LOCAL_EXCEL_PATH", "../database.xlsx").strip() or "../database.xlsx"
     path = Path(configured_path)
     if not path.is_absolute():
         path = BASE_DIR / path
     return path.resolve()
+
+
+def _uses_mock_data() -> bool:
+    value = os.getenv("USE_MOCK_DATA", "false").strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off", ""}:
+        return False
+    raise ValueError("USE_MOCK_DATA debe ser true/false, 1/0, yes/no u on/off.")
 
 
 def _configured_sheet_name() -> str:
@@ -243,10 +256,14 @@ def _leer_excel_local() -> pd.DataFrame:
 
 
 def _guardar_excel_local(registros: List[Dict[str, Any]], columnas: List[str]) -> None:
+    df = pd.DataFrame(registros, columns=columnas)
+    _guardar_dataframe_local(df)
+
+
+def _guardar_dataframe_local(df: pd.DataFrame) -> None:
     path = _excel_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    df = pd.DataFrame(registros, columns=columnas)
     sheet_name = _sheet_to_write(path)
     logger.info("Guardando %s registros en Excel local: %s", len(df), path)
 
@@ -284,7 +301,7 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
+def health_check():
     try:
         df = _leer_excel_local()
         return {
@@ -298,7 +315,7 @@ async def health_check():
 
 
 @app.get("/api/datos")
-async def obtener_datos():
+def obtener_datos():
     try:
         df = _leer_excel_local()
         columnas = df.columns.tolist()
@@ -317,7 +334,7 @@ async def obtener_datos():
 
 
 @app.get("/api/datos/excel")
-async def descargar_datos_excel():
+def descargar_datos_excel():
     try:
         df = _leer_excel_local()
         output = io.BytesIO()
@@ -335,12 +352,122 @@ async def descargar_datos_excel():
         raise HTTPException(status_code=500, detail=f"Error al exportar datos: {str(e)}")
 
 
+@app.post("/api/datos/excel")
+def descargar_datos_filtrados_excel(payload: Dict[str, Any] = Body(...)):
+    try:
+        columnas = [str(col) for col in payload.get("columns", [])]
+        datos = payload.get("data", [])
+        if not columnas or not isinstance(datos, list):
+            raise HTTPException(status_code=400, detail="No se recibieron datos validos para exportar.")
+
+        df = pd.DataFrame(datos, columns=columnas)
+        output = io.BytesIO()
+        sheet_name = _sheet_to_write(_excel_path())
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name=sheet_name)
+        output.seek(0)
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": 'attachment; filename="registros_eventos_filtrados.xlsx"'},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error al exportar datos filtrados: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Error al exportar datos filtrados: {str(e)}")
+
+
+@app.post("/api/asistencia")
+def guardar_asistencia(payload: Dict[str, Any] = Body(...)):
+    try:
+        curso = payload.get("course")
+        updates = payload.get("updates")
+        if not isinstance(curso, str) or not curso.strip():
+            raise HTTPException(status_code=400, detail="Se debe indicar un curso.")
+        if not isinstance(updates, list) or not updates:
+            raise HTTPException(status_code=400, detail="No se recibieron asistencias para guardar.")
+
+        df = _leer_excel_local()
+        columnas = [str(col).strip() for col in df.columns.tolist()]
+        df.columns = columnas
+        curso_col = _buscar_columna(columnas, ["en que curso", "curso, taller", "curso"])
+        if not curso_col:
+            raise HTTPException(status_code=400, detail="No se encontro la columna del curso.")
+
+        notas_col = next(
+            (col for col in columnas if _texto_comparable(col) == "notas_asistencia"),
+            None,
+        )
+        registros_actualizados: Dict[int, Dict[str, str]] = {}
+        for update in updates:
+            if not isinstance(update, dict):
+                raise HTTPException(status_code=400, detail="El formato de asistencia no es valido.")
+
+            row_index = update.get("row_index")
+            asistencia = update.get("attendance")
+            notas = update.get("notes")
+            if isinstance(row_index, bool) or not isinstance(row_index, int) or row_index < 0:
+                raise HTTPException(status_code=400, detail="El indice de un registro no es valido.")
+            if asistencia not in ("Asistió", "No asistió"):
+                raise HTTPException(status_code=400, detail="La asistencia debe ser 'Asistió' o 'No asistió'.")
+            if notas is not None and not isinstance(notas, str):
+                raise HTTPException(status_code=400, detail="Las notas de asistencia deben ser texto.")
+            if row_index in registros_actualizados:
+                raise HTTPException(status_code=400, detail="Hay registros repetidos en la solicitud.")
+            if row_index >= len(df):
+                raise HTTPException(status_code=400, detail="Uno de los registros ya no existe en el Excel.")
+            if _texto_comparable(df.iloc[row_index][curso_col]) != _texto_comparable(curso):
+                raise HTTPException(status_code=400, detail="El curso de un registro no coincide con el curso seleccionado.")
+
+            if notas is None:
+                valor_nota = df.iloc[row_index][notas_col] if notas_col else ""
+                notas = "" if pd.isna(valor_nota) else str(valor_nota)
+            registros_actualizados[row_index] = {"attendance": asistencia, "notes": notas}
+
+        asistencia_col = next(
+            (col for col in columnas if _texto_comparable(col) == "asistencia"),
+            None,
+        )
+        if asistencia_col is None:
+            asistencia_col = "Asistencia"
+            columnas.append(asistencia_col)
+            df[asistencia_col] = ""
+        else:
+            df[asistencia_col] = df[asistencia_col].fillna("").astype(str)
+
+        if notas_col is None:
+            notas_col = "notas_asistencia"
+            df[notas_col] = ""
+        else:
+            df[notas_col] = df[notas_col].fillna("").astype(str)
+        columnas = [col for col in columnas if col != notas_col] + [notas_col]
+
+        for row_index, values in registros_actualizados.items():
+            df.at[df.index[row_index], asistencia_col] = values["attendance"]
+            df.at[df.index[row_index], notas_col] = values["notes"]
+
+        _guardar_dataframe_local(df[columnas])
+        return {
+            "success": True,
+            "message": "Asistencia guardada en el Excel.",
+            "attendance_column": asistencia_col,
+            "notes_column": notas_col,
+            "updated": len(registros_actualizados),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error al guardar la asistencia: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Error al guardar la asistencia: {str(e)}")
+
+
 @app.post("/api/datos/upload-excel")
-async def cargar_excel_diferencial(file: UploadFile = File(...)):
+def cargar_excel_diferencial(file: UploadFile = File(...)):
     try:
         _validar_archivo(file)
 
-        contenido = await file.read()
+        contenido = file.file.read()
         if not contenido:
             raise HTTPException(status_code=400, detail="El archivo Excel esta vacio.")
 
@@ -409,4 +536,9 @@ async def cargar_excel_diferencial(file: UploadFile = File(...)):
 if __name__ == "__main__":
     import uvicorn
 
+    logger.info(
+        "Iniciando con datos %s: %s",
+        "de prueba" if _uses_mock_data() else "reales",
+        _excel_path(),
+    )
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

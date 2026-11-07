@@ -1,10 +1,15 @@
 .app-shell { min-height: 100vh; display: flex; flex-direction: column; background: #f4f6f3; }
-.topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 2rem; padding: 0 2rem; border-bottom: 1px solid #d9dfdc; background: rgba(255, 255, 255, 0.96); box-shadow: 0 3px 14px rgba(37, 50, 61, 0.08); }
+.topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0 1rem; border-bottom: 1px solid #d9dfdc; background: rgba(255, 255, 255, 0.96); box-shadow: 0 3px 14px rgba(37, 50, 61, 0.08); }
 .brand { color: #24323d; font-size: 1.05rem; font-weight: 800; text-decoration: none; }
 .main-nav { display: flex; }
-.main-nav a { padding: 1.1rem 1rem; border-bottom: 3px solid transparent; color: #64727a; font-size: 0.92rem; font-weight: 700; text-decoration: none; transition: color 160ms ease, background 160ms ease; }
+.main-nav a { padding: 0.85rem 0.75rem; border-bottom: 3px solid transparent; color: #64727a; font-size: 0.92rem; font-weight: 700; text-decoration: none; transition: color 160ms ease, background 160ms ease; }
 .main-nav a:hover { background: #f1f5f2; color: #24323d; }
 .main-nav a.active { border-bottom-color: #b65c32; background: #fff2ec; color: #9a4827; }
+.theme-picker { display: flex; align-items: center; gap: 0.45rem; color: #64727a; font-size: 0.82rem; font-weight: 700; }
+.theme-picker select { min-width: 7rem; padding: 0.45rem 0.55rem; border: 1px solid #c7d1cd; border-radius: 0.35rem; background: #fff; color: #24323d; font: inherit; }
+.theme-picker select:focus-visible { outline: 2px solid #b65c32; outline-offset: 2px; }
+.theme-storage-message { position: absolute; top: 100%; right: 0.75rem; padding: 0.3rem; background: #fff8e8; color: #72551d; font-size: 0.75rem; }
 .main-content { flex: 1; }
-.footer { padding: 1.25rem 2rem; border-top: 1px solid #d9dfdc; color: #64727a; text-align: center; font-size: 0.82rem; }
-@media (max-width: 640px) { .topbar { align-items: stretch; flex-direction: column; gap: 0; padding: 0 1rem; } .brand { padding-top: 1rem; text-align: center; } .main-nav { justify-content: center; } .main-nav a { flex: 1; padding: 0.85rem 0.4rem; text-align: center; } }
+.footer { padding: 0.85rem 1rem; border-top: 1px solid #d9dfdc; color: #64727a; text-align: center; font-size: 0.82rem; }
+@media (max-width: 900px) { .topbar { flex-wrap: wrap; justify-content: center; } .brand { margin-right: auto; } }
+@media (max-width: 640px) { .topbar { align-items: stretch; flex-direction: column; gap: 0; padding: 0 1rem 0.75rem; } .brand { padding-top: 1rem; text-align: center; margin: 0; } .main-nav { justify-content: center; } .main-nav a { flex: 1; padding: 0.85rem 0.4rem; text-align: center; } .theme-picker { justify-content: center; padding-top: 0.25rem; } .theme-storage-message { top: auto; right: 0.5rem; } }
