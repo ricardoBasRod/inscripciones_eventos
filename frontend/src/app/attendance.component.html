@@ -50,6 +50,14 @@
       </div>
       <span class="record-count">{{ courseRows.length }} registros</span>
     </div>
+    <div class="attendance-date-card">
+      <div class="attendance-date-copy">
+        <p class="eyebrow">Fecha de la lista</p>
+        <label for="attendance-date">Selecciona la fecha de asistencia</label>
+        <p>Se guardará para todas las personas inscritas en este curso.</p>
+      </div>
+      <input class="attendance-date-input" id="attendance-date" type="date" [(ngModel)]="attendanceDate" required />
+    </div>
     <div class="bulk-actions" aria-label="Acciones para todo el curso">
       <span>Marcar a todos:</span>
       <button type="button" class="bulk-present" (click)="setAllAttendance('Asistió')">Todos asistieron</button>

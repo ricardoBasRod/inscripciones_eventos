@@ -6,6 +6,7 @@ cargar un Excel con diferencias para actualizar la base local.
 """
 
 from pathlib import Path
+from datetime import date
 from typing import Any, Dict, List
 import io
 import logging
@@ -382,9 +383,18 @@ def descargar_datos_filtrados_excel(payload: Dict[str, Any] = Body(...)):
 def guardar_asistencia(payload: Dict[str, Any] = Body(...)):
     try:
         curso = payload.get("course")
+        fecha_asistencia = payload.get("attendance_date")
         updates = payload.get("updates")
         if not isinstance(curso, str) or not curso.strip():
             raise HTTPException(status_code=400, detail="Se debe indicar un curso.")
+        if not isinstance(fecha_asistencia, str):
+            raise HTTPException(status_code=400, detail="Se debe indicar una fecha de asistencia valida.")
+        try:
+            fecha_asistencia_valida = date.fromisoformat(fecha_asistencia)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="La fecha de asistencia debe tener formato AAAA-MM-DD.")
+        if fecha_asistencia_valida.isoformat() != fecha_asistencia:
+            raise HTTPException(status_code=400, detail="La fecha de asistencia debe tener formato AAAA-MM-DD.")
         if not isinstance(updates, list) or not updates:
             raise HTTPException(status_code=400, detail="No se recibieron asistencias para guardar.")
 
@@ -397,6 +407,10 @@ def guardar_asistencia(payload: Dict[str, Any] = Body(...)):
 
         notas_col = next(
             (col for col in columnas if _texto_comparable(col) == "notas_asistencia"),
+            None,
+        )
+        fecha_col = next(
+            (col for col in columnas if _texto_comparable(col) == "fecha_asistencia"),
             None,
         )
         registros_actualizados: Dict[int, Dict[str, str]] = {}
@@ -441,17 +455,25 @@ def guardar_asistencia(payload: Dict[str, Any] = Body(...)):
             df[notas_col] = ""
         else:
             df[notas_col] = df[notas_col].fillna("").astype(str)
+        if fecha_col is None:
+            fecha_col = "fecha_asistencia"
+            df[fecha_col] = ""
+        else:
+            df[fecha_col] = df[fecha_col].astype("object").where(df[fecha_col].notna(), "")
+        columnas = [col for col in columnas if col != fecha_col] + [fecha_col]
         columnas = [col for col in columnas if col != notas_col] + [notas_col]
 
         for row_index, values in registros_actualizados.items():
             df.at[df.index[row_index], asistencia_col] = values["attendance"]
             df.at[df.index[row_index], notas_col] = values["notes"]
+            df.at[df.index[row_index], fecha_col] = fecha_asistencia_valida.isoformat()
 
         _guardar_dataframe_local(df[columnas])
         return {
             "success": True,
             "message": "Asistencia guardada en el Excel.",
             "attendance_column": asistencia_col,
+            "date_column": fecha_col,
             "notes_column": notas_col,
             "updated": len(registros_actualizados),
         }

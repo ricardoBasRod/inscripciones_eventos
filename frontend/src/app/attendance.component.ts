@@ -41,6 +41,7 @@ export class AttendanceComponent implements OnInit {
   pendingAttendanceCount = 0;
   attendanceChoices: Record<number, '' | 'Asistió' | 'No asistió'> = {};
   attendanceNotes: Record<number, string> = {};
+  attendanceDate = this.getTodayDate();
 
   constructor(private dataService: DataService, private router: Router) {}
 
@@ -93,7 +94,7 @@ export class AttendanceComponent implements OnInit {
   }
 
   get canSave(): boolean {
-    return this.courseRows.length > 0 && this.pendingAttendanceCount === 0;
+    return this.courseRows.length > 0 && this.pendingAttendanceCount === 0 && !!this.attendanceDate;
   }
 
   get totalPages(): number {
@@ -125,6 +126,7 @@ export class AttendanceComponent implements OnInit {
   chooseCourse(course: string): void {
     this.courseSearchTerm = course;
     this.selectedCourse = course;
+    this.attendanceDate = this.getTodayDate();
     this.showCourseSuggestions = false;
     this.savedMessage = null;
     this.error = null;
@@ -204,16 +206,20 @@ export class AttendanceComponent implements OnInit {
     this.isSaving = true;
     this.error = null;
     this.savedMessage = null;
-    this.dataService.saveAttendance(this.selectedCourse, updates).subscribe({
+    this.dataService.saveAttendance(this.selectedCourse, this.attendanceDate, updates).subscribe({
       next: response => {
         if (!this.columns.includes(response.attendance_column)) {
           this.columns = [...this.columns, response.attendance_column];
+        }
+        if (!this.columns.includes(response.date_column)) {
+          this.columns = [...this.columns, response.date_column];
         }
         if (!this.columns.includes(response.notes_column)) {
           this.columns = [...this.columns, response.notes_column];
         }
         updates.forEach(update => {
           this.tableData[update.row_index][response.attendance_column] = update.attendance;
+          this.tableData[update.row_index][response.date_column] = this.attendanceDate;
           this.tableData[update.row_index][response.notes_column] = update.notes;
         });
         this.isSaving = false;
@@ -233,6 +239,13 @@ export class AttendanceComponent implements OnInit {
 
   getRegistration(row: Record<string, any>): string {
     return this.registrationColumn ? String(row[this.registrationColumn] ?? '').trim() : '';
+  }
+
+  private getTodayDate(): string {
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${today.getFullYear()}-${month}-${day}`;
   }
 
   private updateVisibleRows(): void {

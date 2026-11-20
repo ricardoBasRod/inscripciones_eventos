@@ -2,7 +2,7 @@
 
 Aplicación web para gestionar inscripciones de eventos. El frontend está desarrollado con Angular y se comunica con una API FastAPI que lee y actualiza los datos del archivo Excel local `database.xlsx`.
 
-Desde la pantalla principal puedes abrir la toma de asistencia, filtrar las inscripciones por curso y guardar para cada persona si asistió y sus notas. Al guardar, la API crea o actualiza las columnas `Asistencia` y `notas_asistencia` en el Excel local; las notas quedan al final de la tabla.
+Desde la pantalla principal puedes abrir la toma de asistencia, filtrar las inscripciones por curso, elegir la fecha de la lista (por defecto, el día actual) y guardar para cada persona si asistió y sus notas. Al guardar, la API crea o actualiza las columnas `Asistencia`, `fecha_asistencia` y `notas_asistencia` en el Excel local. La fecha seleccionada se guarda para todos los alumnos inscritos del curso, hayan asistido o no; la fecha y las notas quedan al final de la tabla.
 
 ## Requisitos previos
 
