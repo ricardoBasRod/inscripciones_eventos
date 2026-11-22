@@ -2,7 +2,11 @@
 
 Aplicación web para gestionar inscripciones y asistencia a eventos. El frontend está desarrollado con Angular y se comunica con una API FastAPI que lee y actualiza los datos del archivo Excel local `database.xlsx`.
 
-Desde la pantalla principal puedes abrir la toma de asistencia, filtrar las inscripciones por curso, elegir la fecha de la lista (por defecto, el día actual) y guardar para cada persona si asistió y sus notas. Al guardar, la API crea o actualiza las columnas `Asistencia`, `fecha_asistencia` y `notas_asistencia` en el Excel local. La fecha seleccionada se guarda para todos los alumnos inscritos del curso, hayan asistido o no; la fecha y las notas quedan al final de la tabla.
+Desde la pantalla principal puedes abrir la toma de asistencia, elegir un curso y después buscar y seleccionar una de sus sesiones por fecha y hora. La lista muestra únicamente las inscripciones de esa sesión; la fecha de la sesión se propone como fecha de asistencia y puedes ajustarla antes de guardar. La API guarda para cada persona si asistió, sus notas y la fecha seleccionada en el Excel local.
+
+Las sesiones disponibles se obtienen de las columnas `Fecha del curso` y `Hora del curso`, que se crean al cargar inscripciones con la fecha y hora incluidas en el campo del curso.
+
+La sección de estadísticas permite consultar asistencias, inasistencias y total de inscripciones entre fechas usando `fecha_asistencia`, con un desglose mensual por curso. La estadística por carrera tiene un rango de fechas independiente, inicialmente del 1 de enero al 31 de diciembre del año actual.
 
 ## Requisitos previos
 
@@ -65,19 +69,36 @@ El backend usa por defecto el archivo `database.xlsx` ubicado en la raíz del pr
 
 ## Probar con datos mock
 
-El archivo `mock_data.xlsx` contiene registros sintéticos y mantiene las mismas columnas que el Excel real. Para iniciar backend y frontend usando esos datos, ejecuta desde la raíz del proyecto:
+El archivo `mock_data.xlsx` contiene registros sintéticos y mantiene las mismas columnas de inscripción que el Excel maestro. Para iniciar backend y frontend usando esos datos, ejecuta desde la raíz del proyecto:
 
 ```powershell
 .\start.bat --mock-data
 ```
 
-Si quieres iniciar solo el backend con los mocks:
+Para cargar también el Excel de prueba en los datos mock:
+
+1. Inicia la aplicación con `.\start.bat --mock-data`.
+2. En Gestión de Eventos, selecciona **Cargar archivo** y elige `mock_upload_course_schedule.xlsx`.
+3. La carga agrega al archivo mock las filas nuevas; al usar `--mock-data`, no modifica `database.xlsx`.
+
+Si quieres iniciar solo el backend con los mocks, ejecuta:
 
 ```powershell
 .\run-backend.bat --mock-data
 ```
 
-Sin `--mock-data`, los scripts usan `database.xlsx`. El archivo `mock_upload.xlsx` sirve para probar la carga diferencial: contiene 10 filas con el formato del Excel, cuatro que ya existen en los mocks y seis nuevas.
+En otra terminal, inicia el frontend con `.\run-frontend.bat`. Sin `--mock-data`, los scripts usan `database.xlsx`; `.\start.bat --real-data` selecciona explícitamente esos datos.
+
+## Archivos Excel
+
+| Archivo | Uso |
+| --- | --- |
+| `database.xlsx` | Excel maestro predeterminado para el modo normal. Las cargas y el pase de lista escriben sus cambios en este archivo cuando no se usa `--mock-data`. |
+| `mock_data.xlsx` | Excel maestro con registros sintéticos. Se selecciona con `.\start.bat --mock-data` y recibe los cambios hechos durante las pruebas en modo mock. |
+| `mock_upload_course_schedule.xlsx` | Archivo listo para probar la carga actual: contiene 10 registros sintéticos nuevos y conserva las columnas del Excel de origen. El campo del curso usa el formato `SW0002 - WEBINAR Solidworks diseño básico CSWA - miércoles 15 de abril 2026 - 3:00 pm`; al importarlo, el nombre se separa de `Fecha del curso` y `Hora del curso`. |
+| `mock_upload.xlsx` | Archivo de prueba anterior. No usar con la carga actual: no incluye `fecha_asistencia` y los cursos no tienen fecha y hora concatenadas en el formato requerido. |
+
+En la toma de asistencia, primero se elige el curso y luego se puede buscar y seleccionar una sesión por fecha y hora. Esas opciones se leen de `Fecha del curso` y `Hora del curso`, columnas que se crean al cargar inscripciones con el formato nuevo.
 
 ## Ejecutar los servicios por separado en Windows
 

@@ -51,10 +51,10 @@ export class DataService {
     );
   }
 
-  saveAttendance(course: string, attendanceDate: string, updates: AsistenciaUpdate[]): Observable<{ success: boolean; attendance_column: string; date_column: string; notes_column: string; updated: number }> {
+  saveAttendance(course: string, attendanceDate: string, sessionDate: string, sessionTime: string, updates: AsistenciaUpdate[]): Observable<{ success: boolean; attendance_column: string; date_column: string; notes_column: string; updated: number }> {
     return this.http.post<{ success: boolean; attendance_column: string; date_column: string; notes_column: string; updated: number }>(
       `${this.apiUrl}/asistencia`,
-      { course, attendance_date: attendanceDate, updates }
+      { course, attendance_date: attendanceDate, session_date: sessionDate, session_time: sessionTime, updates }
     ).pipe(
       catchError(error => {
         console.error('Error guardando asistencia:', error);

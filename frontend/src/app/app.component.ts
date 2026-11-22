@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { NgFor } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
-type ThemeId = 'bosque' | 'oceano' | 'lavanda' | 'coral' | 'nocturno';
+type ThemeId = 'bosque' | 'oceano' | 'arena' | 'esmeralda';
 
 @Component({
   selector: 'app-root',
@@ -15,9 +15,8 @@ export class AppComponent implements OnInit {
   readonly themes: { id: ThemeId; name: string }[] = [
     { id: 'bosque', name: 'Bosque' },
     { id: 'oceano', name: 'Océano' },
-    { id: 'lavanda', name: 'Lavanda' },
-    { id: 'coral', name: 'Coral' },
-    { id: 'nocturno', name: 'Nocturno' }
+    { id: 'arena', name: 'Arena' },
+    { id: 'esmeralda', name: 'Esmeralda' }
   ];
 
   selectedTheme: ThemeId = 'bosque';

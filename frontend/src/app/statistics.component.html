@@ -2,7 +2,7 @@
   <div>
     <p class="eyebrow">Lectura del Excel</p>
     <h1>Estadísticas</h1>
-    <p class="page-description">Asistencia, evolución de cursos y alcance de las inscripciones.</p>
+    <p class="page-description">Asistencias, inasistencias e inscripciones por fecha.</p>
   </div>
 </section>
 
@@ -10,29 +10,82 @@
   <div *ngIf="isLoading" class="empty-state"><p>Calculando estadísticas...</p></div>
   <div *ngIf="error" class="error-message">{{ error }}</div>
   <ng-container *ngIf="!isLoading && !error">
-    <div class="stats-grid">
-      <article class="stat-card stat-card-accent"><span class="stat-label">Asistencia global</span><strong>{{ attendanceAvailable ? (globalAttendanceRate | number:'1.0-1') + '%' : 'N/D' }}</strong><span class="stat-note">{{ attendedTotal }} asistentes de {{ tableData.length }} inscritos</span></article>
-      <article class="stat-card"><span class="stat-label">Inscritos en el periodo</span><strong>{{ accumulatedTotal }}</strong><span class="stat-note">Rango seleccionado</span></article>
-      <article class="stat-card"><span class="stat-label">Cursos</span><strong>{{ courses.length }}</strong><span class="stat-note">Cursos con inscripciones</span></article>
-      <article class="stat-card"><span class="stat-label">Áreas y grupos</span><strong>{{ careerStats.length }}</strong><span class="stat-note">Estudiantes y colaboradores externos</span></article>
-    </div>
-    <p *ngIf="!attendanceAvailable" class="data-warning">No se detectó una columna de asistencia. Para calcular porcentajes agrega un encabezado que contenga “asistencia”, “asistió”, “presencia” o “attended”.</p>
     <section class="panel">
-      <div class="panel-heading"><div><p class="eyebrow">Evolución</p><h2>Un curso en el tiempo</h2></div><label>Curso<select [(ngModel)]="selectedCourse"><option *ngFor="let course of courses" [value]="course">{{ course }}</option></select></label></div>
-      <div *ngIf="selectedCourseStats.length; else noCourseData" class="bar-list"><div class="bar-row" *ngFor="let item of selectedCourseStats"><span>{{ item.month }}</span><div class="bar-track"><div class="bar-fill" [style.width.%]="selectedCourseBarWidth(item.total)"></div></div><strong>{{ item.total }}</strong></div></div>
-      <ng-template #noCourseData><p class="empty-state compact">No hay fechas válidas para este curso.</p></ng-template>
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Resumen del periodo</p>
+          <h2>Inscripciones entre fechas</h2>
+        </div>
+        <div class="date-controls">
+          <label>Desde<input type="date" [(ngModel)]="fromDate" (ngModelChange)="refreshStatistics()" [disabled]="!dateColumn"></label>
+          <label>Hasta<input type="date" [(ngModel)]="toDate" (ngModelChange)="refreshStatistics()" [disabled]="!dateColumn"></label>
+        </div>
+      </div>
+      <p *ngIf="!dateColumn" class="data-warning">No se encontró la columna `fecha_asistencia`. Las estadísticas por periodo requieren ese campo.</p>
+      <p *ngIf="!attendanceAvailable" class="data-warning">No se detectó la columna de asistencia. Los conteos de asistencias e inasistencias requieren la columna `Asistencia`.</p>
+      <p *ngIf="dateRangeInvalid" class="data-warning">La fecha inicial no puede ser posterior a la fecha final.</p>
+      <p class="progress-caption">{{ fromDate || 'Inicio' }} hasta {{ toDate || 'Fin' }} · Fecha usada: {{ dateRangeLabel }}</p>
+      <div class="monthly-table-wrap">
+        <table class="stats-table attendance-period-table">
+          <colgroup>
+            <col class="course-name-column">
+            <col class="count-column">
+            <col class="count-column">
+            <col class="count-column">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Nombre del curso</th>
+              <th>Asistencias</th>
+              <th>Inasistencias</th>
+              <th>Inscripciones totales</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="periodTotal" class="period-total-row">
+              <td>
+                <button
+                  type="button"
+                  class="career-area-toggle"
+                  [attr.aria-expanded]="showMonthlyBreakdown"
+                  (click)="showMonthlyBreakdown = !showMonthlyBreakdown"
+                >{{ showMonthlyBreakdown ? '▼' : '▶' }} Total del periodo</button>
+              </td>
+              <td>{{ attendanceAvailable ? periodAttended : 'N/D' }}</td>
+              <td>{{ attendanceAvailable ? periodAbsent : 'N/D' }}</td>
+              <td>{{ periodTotal }}</td>
+            </tr>
+            <ng-container *ngFor="let month of monthlyStats">
+              <tr [hidden]="!showMonthlyBreakdown" class="monthly-subtotal-row">
+                <td>{{ month.month }}</td>
+                <td>{{ attendanceAvailable ? month.attended : 'N/D' }}</td>
+                <td>{{ attendanceAvailable ? month.absent : 'N/D' }}</td>
+                <td>{{ month.registered }}</td>
+              </tr>
+              <tr *ngFor="let course of month.courses" [hidden]="!showMonthlyBreakdown" class="monthly-course-row">
+                <td>{{ course.course }}</td>
+                <td>{{ attendanceAvailable ? course.attended : 'N/D' }}</td>
+                <td>{{ attendanceAvailable ? course.absent : 'N/D' }}</td>
+                <td>{{ course.registered }}</td>
+              </tr>
+            </ng-container>
+            <tr *ngIf="!periodTotal">
+              <td colspan="5" class="empty-state compact">No hay inscripciones con fecha en el periodo seleccionado.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
     <section class="panel">
-      <div class="panel-heading"><div><p class="eyebrow">Comparativa mensual</p><h2>Inscripciones por curso</h2></div><label>Mostrar<select [(ngModel)]="rankingMode"><option value="top">10 más inscritos</option><option value="bottom">10 menos inscritos</option></select></label></div>
-      <div class="ranking-list"><div class="ranking-row" *ngFor="let item of rankingCourses"><span>{{ item.course }}</span><div class="bar-track"><div class="bar-fill warm" [style.width.%]="rankingBarWidth(item.total)"></div></div><strong>{{ item.total }}</strong></div></div>
-      <div class="monthly-table-wrap"><table class="stats-table"><thead><tr><th>Curso</th><th>Mes</th><th>Inscritos</th></tr></thead><tbody><tr *ngFor="let item of rankingStats"><td>{{ item.course }}</td><td>{{ item.month }}</td><td>{{ item.total }}</td></tr></tbody></table></div>
-    </section>
-    <section class="panel">
-      <div class="panel-heading"><div><p class="eyebrow">Acumulado</p><h2>Inscripciones entre fechas</h2></div><div class="date-controls"><label>Desde<input type="date" [(ngModel)]="fromDate" (ngModelChange)="refreshStatistics()"></label><label>Hasta<input type="date" [(ngModel)]="toDate" (ngModelChange)="refreshStatistics()"></label></div></div>
-      <div class="accumulated-number">{{ accumulatedTotal }} <span>inscripciones</span></div><p class="progress-caption">{{ fromDate || 'Inicio' }} hasta {{ toDate || 'hoy' }} · Fecha usada: {{ dateRangeLabel }}</p>
-    </section>
-    <section class="panel">
-      <div class="panel-heading"><div><p class="eyebrow">Asistencia por carrera</p><h2>Inscritos y porcentaje que asiste por área</h2></div></div>
+      <div class="panel-heading">
+        <div><p class="eyebrow">Asistencia por carrera</p><h2>Inscritos y porcentaje que asiste por área</h2></div>
+        <div class="date-controls">
+          <label>Desde<input type="date" [(ngModel)]="careerFromDate" (ngModelChange)="refreshStatistics()" [disabled]="!dateColumn"></label>
+          <label>Hasta<input type="date" [(ngModel)]="careerToDate" (ngModelChange)="refreshStatistics()" [disabled]="!dateColumn"></label>
+        </div>
+      </div>
+      <p *ngIf="careerDateRangeInvalid" class="data-warning">La fecha inicial no puede ser posterior a la fecha final.</p>
+      <p class="progress-caption">{{ careerFromDate }} hasta {{ careerToDate }} · Fecha usada: {{ dateRangeLabel }}</p>
       <div class="monthly-table-wrap">
         <table class="stats-table">
           <thead>

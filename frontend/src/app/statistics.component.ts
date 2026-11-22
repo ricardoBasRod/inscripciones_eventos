@@ -8,10 +8,20 @@ interface DatosResponse {
   data: Record<string, any>[];
 }
 
-interface CourseMonthStat {
+interface MonthlyCourseStat {
   course: string;
+  registered: number;
+  attended: number;
+  absent: number;
+}
+
+interface MonthlyAttendanceStat {
   month: string;
-  total: number;
+  monthKey: string;
+  registered: number;
+  attended: number;
+  absent: number;
+  courses: MonthlyCourseStat[];
 }
 
 interface CareerStat {
@@ -86,34 +96,21 @@ export class StatisticsComponent implements OnInit {
   error: string | null = null;
   tableData: Record<string, any>[] = [];
   columns: string[] = [];
-  selectedCourse = '';
-  rankingMode: 'top' | 'bottom' = 'top';
   fromDate = '';
   toDate = '';
+  careerFromDate = '';
+  careerToDate = '';
+  showMonthlyBreakdown = false;
   expandedCareerAreas = new Set<string>();
 
-  readonly monthFormatter = new Intl.DateTimeFormat('es-MX', { month: 'short', year: 'numeric' });
-  private cachedCourses: string[] = [];
-  private cachedAttendedTotal = 0;
-  private cachedGlobalAttendanceRate = 0;
-  private cachedAccumulatedTotal = 0;
+  readonly monthFormatter = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' });
+  private cachedPeriodAttended = 0;
+  private cachedPeriodAbsent = 0;
+  private cachedPeriodTotal = 0;
   private cachedCareerStats: CareerStat[] = [];
   private cachedCareerDetails = new Map<string, CareerStat[]>();
   private cachedCareerRows = new Map<CareerProgram, Record<string, any>[]>();
-  private cachedSelectedCourseStats = new Map<string, CourseMonthStat[]>();
-  private cachedSelectedCourseMax = new Map<string, number>();
-  private cachedRankingCourses: Record<'top' | 'bottom', { course: string; total: number }[]> = {
-    top: [],
-    bottom: []
-  };
-  private cachedRankingStats: Record<'top' | 'bottom', CourseMonthStat[]> = {
-    top: [],
-    bottom: []
-  };
-  private cachedRankingMax: Record<'top' | 'bottom', number> = {
-    top: 1,
-    bottom: 1
-  };
+  private cachedMonthlyStats: MonthlyAttendanceStat[] = [];
 
   constructor(private dataService: DataService) {}
 
@@ -122,11 +119,8 @@ export class StatisticsComponent implements OnInit {
       next: (response: DatosResponse) => {
         this.tableData = response.data || [];
         this.columns = response.columns || [];
-        this.cachedCourses = this.uniqueValues(this.courseColumn);
-        this.cachedAttendedTotal = this.attendedRows(this.tableData).length;
-        this.cachedGlobalAttendanceRate = this.percentage(this.cachedAttendedTotal, this.tableData.length);
         this.setInitialDateRange();
-        this.selectedCourse = this.cachedCourses[0] || '';
+        this.setInitialCareerDateRange();
         this.refreshStatistics();
         this.isLoading = false;
       },
@@ -147,8 +141,19 @@ export class StatisticsComponent implements OnInit {
 
     return inscriptionColumn || this.findColumn(['curso taller o webinar', 'curso taller webinar', 'curso', 'taller', 'webinar']);
   }
-  get dateColumn(): string | null { return this.findColumn(['completion time', 'fecha', 'date', 'timestamp']); }
-  get attendanceColumn(): string | null { return this.findColumn(['asistencia', 'asistio', 'asistió', 'presencia', 'attend', 'presente']); }
+  get dateColumn(): string | null {
+    return this.columns.find(column => this.normalize(column) === 'fecha_asistencia') || null;
+  }
+  get attendanceColumn(): string | null {
+    return this.columns.find(column => this.normalize(column) === 'asistencia') ||
+      this.columns.find(column => {
+        const normalizedColumn = this.normalize(column);
+        return normalizedColumn !== 'fecha_asistencia' &&
+          normalizedColumn !== 'notas_asistencia' &&
+          ['asistencia', 'asistio', 'presencia', 'attend', 'presente']
+            .some(pattern => normalizedColumn.includes(pattern));
+      }) || null;
+  }
   get careerColumn(): string | null {
     const careerQuestion = this.columns.find(column => {
       const normalizedColumn = this.normalize(column);
@@ -161,41 +166,33 @@ export class StatisticsComponent implements OnInit {
     return this.columns.find(column => this.normalize(column).includes('identifica mejor')) ||
       this.findColumn(['tipo de participante', 'tipo de persona', 'perfil del participante']);
   }
-  get courses(): string[] { return this.cachedCourses; }
   get attendanceAvailable(): boolean { return !!this.attendanceColumn; }
   get dateRangeLabel(): string { return this.dateColumn || 'No detectada'; }
+  get dateRangeInvalid(): boolean { return !!this.fromDate && !!this.toDate && this.fromDate > this.toDate; }
+  get careerDateRangeInvalid(): boolean {
+    return !!this.careerFromDate && !!this.careerToDate && this.careerFromDate > this.careerToDate;
+  }
 
-  get attendedTotal(): number { return this.cachedAttendedTotal; }
-  get globalAttendanceRate(): number { return this.cachedGlobalAttendanceRate; }
-  get selectedCourseStats(): CourseMonthStat[] { return this.cachedSelectedCourseStats.get(this.selectedCourse) || []; }
-  get rankingStats(): CourseMonthStat[] { return this.cachedRankingStats[this.rankingMode]; }
-  get rankingCourses(): { course: string; total: number }[] { return this.cachedRankingCourses[this.rankingMode]; }
-  get accumulatedTotal(): number { return this.cachedAccumulatedTotal; }
+  get periodAttended(): number { return this.cachedPeriodAttended; }
+  get periodAbsent(): number { return this.cachedPeriodAbsent; }
+  get periodTotal(): number { return this.cachedPeriodTotal; }
+  get monthlyStats(): MonthlyAttendanceStat[] { return this.cachedMonthlyStats; }
   get careerStats(): CareerStat[] { return this.cachedCareerStats; }
 
   percentage(value: number, total: number): number { return total ? Math.round((value / total) * 1000) / 10 : 0; }
-  maxValue(values: number[]): number { return Math.max(...values, 1); }
-  selectedCourseBarWidth(total: number): number { return total / (this.cachedSelectedCourseMax.get(this.selectedCourse) || 1) * 100; }
-  rankingBarWidth(total: number): number { return total / this.cachedRankingMax[this.rankingMode] * 100; }
 
   refreshStatistics(): void {
-    const rows = this.filteredRowsByDate();
-    const courseRows = new Map<string, Record<string, any>[]>();
-    const monthlyStats = new Map<string, Map<string, CourseMonthStat>>();
+    const periodRows = this.filteredRowsByDate(this.fromDate, this.toDate);
+    const careerRangeRows = this.filteredRowsByDate(this.careerFromDate, this.careerToDate);
+    const monthlyStats = new Map<string, MonthlyAttendanceStat>();
     const careerRows = new Map<string, Record<string, any>[]>();
     const programRows = new Map<CareerProgram, Record<string, any>[]>();
-    const courseTotals: { course: string; total: number }[] = [];
 
     CAREER_AREAS.forEach(area => careerRows.set(area, []));
     careerRows.set('Otras carreras', []);
     careerRows.set('Colaborador Externo Tec', []);
 
-    rows.forEach(row => {
-      const course = this.value(row, this.courseColumn);
-      const rowsForCourse = courseRows.get(course) || [];
-      rowsForCourse.push(row);
-      courseRows.set(course, rowsForCourse);
-
+    careerRangeRows.forEach(row => {
       const career = this.value(row, this.careerColumn);
       const program = this.findCareerProgram(career);
       const isStudent = this.isStudent(row, program);
@@ -208,23 +205,48 @@ export class StatisticsComponent implements OnInit {
         rowsForProgram.push(row);
         programRows.set(program, rowsForProgram);
       }
+    });
 
+    periodRows.forEach(row => {
+      const course = this.value(row, this.courseColumn) || 'Sin curso';
       const date = this.parseDate(this.dateColumn ? row[this.dateColumn] : null);
       if (!date) {
         return;
       }
-      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
-      const courseMonths = monthlyStats.get(course) || new Map<string, CourseMonthStat>();
-      const current = courseMonths.get(monthKey);
-      courseMonths.set(monthKey, {
-        course,
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthStat = monthlyStats.get(monthKey) || {
+        monthKey,
         month: this.monthFormatter.format(date),
-        total: (current?.total || 0) + 1
-      });
-      monthlyStats.set(course, courseMonths);
+        registered: 0,
+        attended: 0,
+        absent: 0,
+        courses: []
+      };
+      let courseStat = monthStat.courses.find(item => item.course === course);
+      if (!courseStat) {
+        courseStat = { course, registered: 0, attended: 0, absent: 0 };
+        monthStat.courses.push(courseStat);
+      }
+
+      const attended = this.isAttended(row);
+      const absent = this.isAbsent(row);
+      monthStat.registered++;
+      monthStat.attended += attended ? 1 : 0;
+      monthStat.absent += absent ? 1 : 0;
+      courseStat.registered++;
+      courseStat.attended += attended ? 1 : 0;
+      courseStat.absent += absent ? 1 : 0;
+      monthlyStats.set(monthKey, monthStat);
     });
 
-    this.cachedAccumulatedTotal = rows.length;
+    this.cachedPeriodTotal = periodRows.length;
+    this.cachedPeriodAttended = this.attendedRows(periodRows).length;
+    this.cachedPeriodAbsent = periodRows.filter(row => this.isAbsent(row)).length;
+    this.cachedMonthlyStats = [...monthlyStats.values()]
+      .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+    this.cachedMonthlyStats.forEach(month =>
+      month.courses.sort((a, b) => a.course.localeCompare(b.course, 'es'))
+    );
     this.cachedCareerStats = CAREER_AREAS.map(area =>
       this.createCareerStat(area, careerRows.get(area)!)
     );
@@ -235,52 +257,33 @@ export class StatisticsComponent implements OnInit {
     );
     this.cachedCareerRows = programRows;
     this.cachedCareerDetails.clear();
-
-    this.cachedSelectedCourseStats.clear();
-    this.cachedSelectedCourseMax.clear();
-    this.cachedCourses.forEach(course => {
-      const stats = [...(monthlyStats.get(course)?.values() || [])]
-        .sort((a, b) => a.month.localeCompare(b.month));
-      this.cachedSelectedCourseStats.set(course, stats);
-      this.cachedSelectedCourseMax.set(course, this.maxValue(stats.map(stat => stat.total)));
-      courseTotals.push({ course, total: courseRows.get(course)?.length || 0 });
-    });
-
-    const topCourses = [...courseTotals]
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
-    const bottomCourses = [...courseTotals]
-      .sort((a, b) => a.total - b.total)
-      .slice(0, 10);
-    this.cachedRankingCourses = { top: topCourses, bottom: bottomCourses };
-    this.cachedRankingStats = {
-      top: topCourses.flatMap(item => this.getMonthlyStats(monthlyStats, item.course)),
-      bottom: bottomCourses.flatMap(item => this.getMonthlyStats(monthlyStats, item.course))
-    };
-    this.cachedRankingMax = {
-      top: this.maxValue(topCourses.map(item => item.total)),
-      bottom: this.maxValue(bottomCourses.map(item => item.total))
-    };
+    this.expandedCareerAreas.forEach(area => this.cacheCareerDetails(area));
   }
 
-  private filteredRowsByDate(): Record<string, any>[] {
-    if (!this.dateColumn || (!this.fromDate && !this.toDate)) return this.tableData;
-    const from = this.fromDate ? new Date(`${this.fromDate}T00:00:00`).getTime() : -Infinity;
-    const to = this.toDate ? new Date(`${this.toDate}T23:59:59`).getTime() : Infinity;
+  private filteredRowsByDate(fromDate: string, toDate: string): Record<string, any>[] {
+    if (!this.dateColumn) return [];
+    if (fromDate && toDate && fromDate > toDate) return [];
+    const from = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : -Infinity;
+    const to = toDate ? new Date(`${toDate}T23:59:59.999`).getTime() : Infinity;
     return this.tableData.filter(row => { const time = this.parseDate(row[this.dateColumn!])?.getTime() ?? NaN; return Number.isFinite(time) && time >= from && time <= to; });
   }
 
-  private getMonthlyStats(
-    monthlyStats: Map<string, Map<string, CourseMonthStat>>,
-    course: string
-  ): CourseMonthStat[] {
-    return [...(monthlyStats.get(course)?.values() || [])]
-      .sort((a, b) => a.month.localeCompare(b.month));
+  private attendedRows(rows: Record<string, any>[]): Record<string, any>[] {
+    return this.attendanceColumn ? rows.filter(row => this.isAttended(row)) : [];
   }
 
-  private attendedRows(rows: Record<string, any>[]): Record<string, any>[] {
-    if (!this.attendanceColumn) return [];
-    return rows.filter(row => /^(si|sí|yes|true|1|asistio|asistió|asistencia|presente|attended|presencial)$/i.test(this.normalize(String(row[this.attendanceColumn!] ?? '')).trim()));
+  private isAttended(row: Record<string, any>): boolean {
+    return !!this.attendanceColumn &&
+      /^(si|yes|true|1|asistio|asistencia|presente|attended|presencial)$/.test(
+        this.normalize(String(row[this.attendanceColumn] ?? '')).trim()
+      );
+  }
+
+  private isAbsent(row: Record<string, any>): boolean {
+    return !!this.attendanceColumn &&
+      /^(no|false|0|no asistio|ausente|absent)$/.test(
+        this.normalize(String(row[this.attendanceColumn] ?? '')).trim()
+      );
   }
 
   private createCareerStat(career: string, rows: Record<string, any>[]): CareerStat {
@@ -298,12 +301,7 @@ export class StatisticsComponent implements OnInit {
       expanded.delete(area);
     } else {
       if (!this.cachedCareerDetails.has(area)) {
-        this.cachedCareerDetails.set(
-          area,
-          CAREER_PROGRAMS
-            .filter(program => program.area === area)
-            .map(program => this.createCareerStat(program.name, this.cachedCareerRows.get(program) || []))
-        );
+        this.cacheCareerDetails(area);
       }
       expanded.add(area);
     }
@@ -330,13 +328,64 @@ export class StatisticsComponent implements OnInit {
     return matchingPrograms.length === 1 ? matchingPrograms[0] : undefined;
   }
 
-  private uniqueValues(column: string | null): string[] { return column ? [...new Set(this.tableData.map(row => this.value(row, column)).filter(Boolean))].sort() : []; }
   private value(row: Record<string, any>, column: string | null): string {
     return this.repairEncoding(String(column ? row[column] ?? '' : '').trim());
   }
-  private percentageDate(date: Date): string { return date.toISOString().slice(0, 10); }
-  private setInitialDateRange(): void { const dates = this.tableData.map(row => this.parseDate(row[this.dateColumn!])).filter((date): date is Date => !!date).sort((a, b) => a.getTime() - b.getTime()); if (dates.length) { this.fromDate = this.percentageDate(dates[0]); this.toDate = this.percentageDate(dates[dates.length - 1]); } }
-  private parseDate(value: any): Date | null { if (!value) return null; const date = new Date(value); if (!Number.isNaN(date.getTime())) return date; const match = String(value).match(/(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/); if (!match) return null; const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3]); const parsed = new Date(year, Number(match[2]) - 1, Number(match[1])); return Number.isNaN(parsed.getTime()) ? null : parsed; }
+  private percentageDate(date: Date): string {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
+
+  private setInitialDateRange(): void {
+    if (!this.dateColumn) return;
+    const dates = this.tableData
+      .map(row => this.parseDate(row[this.dateColumn!]))
+      .filter((date): date is Date => !!date)
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (dates.length) {
+      this.fromDate = this.percentageDate(dates[0]);
+      this.toDate = this.percentageDate(dates[dates.length - 1]);
+    }
+  }
+
+  private setInitialCareerDateRange(): void {
+    const year = new Date().getFullYear();
+    this.careerFromDate = `${year}-01-01`;
+    this.careerToDate = `${year}-12-31`;
+  }
+
+  private parseDate(value: any): Date | null {
+    if (!value) return null;
+    const text = String(value).trim();
+    const isoDate = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoDate) {
+      return this.createValidDate(Number(isoDate[1]), Number(isoDate[2]), Number(isoDate[3]));
+    }
+    const localDate = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})/);
+    if (localDate) {
+      const year = Number(localDate[3].length === 2 ? `20${localDate[3]}` : localDate[3]);
+      return this.createValidDate(year, Number(localDate[2]), Number(localDate[1]));
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  private createValidDate(year: number, month: number, day: number): Date | null {
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+      ? date
+      : null;
+  }
+
+  private cacheCareerDetails(area: string): void {
+    this.cachedCareerDetails.set(
+      area,
+      CAREER_PROGRAMS
+        .filter(program => program.area === area)
+        .map(program => this.createCareerStat(program.name, this.cachedCareerRows.get(program) || []))
+    );
+  }
 
   private findColumn(patterns: string[]): string | null {
     return this.columns.find(column => {

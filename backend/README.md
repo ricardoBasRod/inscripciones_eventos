@@ -65,7 +65,7 @@ En macOS o Linux:
 bash ../run-backend.sh --mock-data
 ```
 
-Para iniciar con el Excel real, usa `--real-data` o ejecuta los scripts sin
+Para iniciar con el Excel real, usa `--real-data` o corre los scripts sin
 argumentos. También se puede seleccionar la fuente para una ejecución directa:
 
 ```powershell
@@ -130,15 +130,24 @@ Retorna la estructura del archivo sin los datos.
 }
 ```
 
-### 4. Cargar Datos Personalizados
+### 4. Importar registros desde Excel
 ```http
-POST /api/datos/upload
-Content-Type: application/json
-
-{
-  "file_url": "https://1drv.ms/x/..."
-}
+POST /api/datos/upload-excel
+Content-Type: multipart/form-data
 ```
+
+Envía el archivo en el campo `file`.
+
+El archivo debe conservar las columnas del Excel base. En cada fila, el campo
+del curso debe incluir el nombre, la fecha y la hora, por ejemplo:
+
+```text
+SW0002 - WEBINAR Solidworks diseño básico CSWA - miércoles 15 de abril 2026 - 3:00 pm
+```
+
+Al importar, el backend guarda el nombre del curso en su columna original y
+separa la fecha (`2026-04-15`) y la hora (`15:00`) en `Fecha del curso` y
+`Hora del curso`. El día, mes y horario deben tener un formato válido.
 
 ## 🔗 Obtener URL Compartida de OneDrive
 

@@ -19,6 +19,7 @@
         type="text"
         autocomplete="off"
         placeholder="Busca y selecciona un curso"
+        [disabled]="isSaving"
         [(ngModel)]="courseSearchTerm"
         (ngModelChange)="onCourseSearchChange()"
         (focus)="showCourseSuggestions = true; refreshCourseSuggestions()"
@@ -42,6 +43,45 @@
     <p *ngIf="courseColumn && availableCourses.length === 0" class="data-warning">No hay cursos con registros disponibles.</p>
   </section>
 
+  <section *ngIf="selectedCourse" class="attendance-panel">
+    <label for="session-search">Fecha y hora de la sesión</label>
+    <div class="course-search">
+      <input
+        id="session-search"
+        type="text"
+        autocomplete="off"
+        placeholder="Escribe para buscar una fecha u hora"
+        [disabled]="isSaving || !hasSessionColumns"
+        [(ngModel)]="sessionSearchTerm"
+        (ngModelChange)="onSessionSearchChange()"
+        (focus)="showSessionSuggestions = true; refreshSessionSuggestions()"
+        (blur)="showSessionSuggestions = false"
+        aria-autocomplete="list"
+        aria-controls="session-suggestions"
+      />
+      <ul *ngIf="showSessionSuggestions && sessionSuggestions.length" id="session-suggestions" class="course-suggestions" role="listbox">
+        <li *ngFor="let session of sessionSuggestions">
+          <button type="button" role="option" (mousedown)="$event.preventDefault()" (click)="chooseSession(session)">{{ session.label }}</button>
+        </li>
+      </ul>
+      <p *ngIf="showSessionSuggestions && matchingSessionCount > sessionSuggestions.length" class="suggestion-limit">
+        Mostrando {{ sessionSuggestions.length }} de {{ matchingSessionCount }} sesiones. Escribe para filtrar.
+      </p>
+      <p *ngIf="showSessionSuggestions && sessionSearchTerm && matchingSessionCount === 0 && hasSessionColumns" class="suggestion-limit">
+        No hay sesiones que coincidan con la búsqueda.
+      </p>
+    </div>
+    <p *ngIf="!hasSessionColumns" class="data-warning">
+      El Excel no contiene las columnas de fecha y hora del curso. Vuelve a cargar los registros con el formato de sesión.
+    </p>
+    <p *ngIf="hasSessionColumns && availableSessions.length === 0" class="data-warning">
+      Este curso no tiene fechas y horas de sesión registradas.
+    </p>
+    <p *ngIf="availableSessions.length" class="page-description">
+      Selecciona una opción para buscar únicamente las inscripciones de esa sesión.
+    </p>
+  </section>
+
   <section *ngIf="selectedCourse && courseRows.length" class="attendance-panel attendance-table-panel">
     <div class="section-title">
       <div>
@@ -54,9 +94,9 @@
       <div class="attendance-date-copy">
         <p class="eyebrow">Fecha de la lista</p>
         <label for="attendance-date">Selecciona la fecha de asistencia</label>
-        <p>Se guardará para todas las personas inscritas en este curso.</p>
+        <p>Sesión seleccionada: {{ selectedSession?.label }}. La fecha inicia con la fecha de la sesión.</p>
       </div>
-      <input class="attendance-date-input" id="attendance-date" type="date" [(ngModel)]="attendanceDate" required />
+      <input class="attendance-date-input" id="attendance-date" type="date" [(ngModel)]="attendanceDate" [disabled]="isSaving" required />
     </div>
     <div class="bulk-actions" aria-label="Acciones para todo el curso">
       <span>Marcar a todos:</span>

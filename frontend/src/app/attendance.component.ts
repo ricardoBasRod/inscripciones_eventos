@@ -14,6 +14,12 @@ interface CourseRow {
   index: number;
 }
 
+interface CourseSession {
+  date: string;
+  time: string;
+  label: string;
+}
+
 @Component({
   selector: 'app-attendance',
   standalone: true,
@@ -31,10 +37,16 @@ export class AttendanceComponent implements OnInit {
   courseSearchTerm = '';
   selectedCourse = '';
   showCourseSuggestions = false;
+  sessionSearchTerm = '';
+  selectedSession: CourseSession | null = null;
+  showSessionSuggestions = false;
   readonly pageSize = 50;
   availableCourses: string[] = [];
   courseSuggestions: string[] = [];
   matchingCourseCount = 0;
+  availableSessions: CourseSession[] = [];
+  sessionSuggestions: CourseSession[] = [];
+  matchingSessionCount = 0;
   courseRows: CourseRow[] = [];
   visibleCourseRows: CourseRow[] = [];
   currentPage = 0;
@@ -78,12 +90,47 @@ export class AttendanceComponent implements OnInit {
     return this.findColumn(['matricula', 'matrícula', 'nomina', 'nómina']);
   }
 
+  get hasSessionColumns(): boolean {
+    return !!this.sessionDateColumn && !!this.sessionTimeColumn;
+  }
+
   private getAvailableCourses(): string[] {
     if (!this.courseColumn) {
       return [];
     }
     return [...new Set(this.tableData.map(row => String(row[this.courseColumn!] ?? '').trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, 'es'));
+  }
+
+  private getAvailableSessions(course: string): CourseSession[] {
+    const courseColumn = this.courseColumn;
+    const dateColumn = this.sessionDateColumn;
+    const timeColumn = this.sessionTimeColumn;
+    if (!courseColumn || !dateColumn || !timeColumn) {
+      return [];
+    }
+
+    const sessions = new Map<string, CourseSession>();
+    this.tableData.forEach(row => {
+      if (String(row[courseColumn] ?? '').trim() !== course) {
+        return;
+      }
+
+      const date = this.normalizeSessionDate(row[dateColumn]);
+      const time = this.normalizeSessionTime(row[timeColumn]);
+      if (!date || !time) {
+        return;
+      }
+
+      const key = `${date} ${time}`;
+      if (!sessions.has(key)) {
+        sessions.set(key, { date, time, label: this.formatSessionLabel(date, time) });
+      }
+    });
+
+    return [...sessions.values()].sort((a, b) =>
+      `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+    );
   }
 
   refreshCourseSuggestions(): void {
@@ -93,8 +140,20 @@ export class AttendanceComponent implements OnInit {
     this.courseSuggestions = matches.slice(0, 30);
   }
 
+  refreshSessionSuggestions(): void {
+    const term = this.normalize(this.sessionSearchTerm.trim());
+    const matches = this.availableSessions.filter(session =>
+      !term || this.normalize(`${session.label} ${session.date} ${session.time}`).includes(term)
+    );
+    this.matchingSessionCount = matches.length;
+    this.sessionSuggestions = matches.slice(0, 30);
+  }
+
   get canSave(): boolean {
-    return this.courseRows.length > 0 && this.pendingAttendanceCount === 0 && !!this.attendanceDate;
+    return !!this.selectedSession &&
+      this.courseRows.length > 0 &&
+      this.pendingAttendanceCount === 0 &&
+      !!this.attendanceDate;
   }
 
   get totalPages(): number {
@@ -113,6 +172,11 @@ export class AttendanceComponent implements OnInit {
     this.selectedCourse = '';
     this.courseRows = [];
     this.visibleCourseRows = [];
+    this.availableSessions = [];
+    this.sessionSuggestions = [];
+    this.sessionSearchTerm = '';
+    this.selectedSession = null;
+    this.showSessionSuggestions = false;
     this.currentPage = 0;
     this.pendingAttendanceCount = 0;
     this.attendanceChoices = {};
@@ -126,25 +190,70 @@ export class AttendanceComponent implements OnInit {
   chooseCourse(course: string): void {
     this.courseSearchTerm = course;
     this.selectedCourse = course;
-    this.attendanceDate = this.getTodayDate();
     this.showCourseSuggestions = false;
     this.savedMessage = null;
     this.error = null;
+    this.availableSessions = this.getAvailableSessions(course);
+    this.sessionSearchTerm = '';
+    this.selectedSession = null;
+    this.showSessionSuggestions = true;
+    this.refreshSessionSuggestions();
+    this.courseRows = [];
+    this.visibleCourseRows = [];
+    this.pendingAttendanceCount = 0;
     this.attendanceChoices = {};
-    const attendanceColumn = this.attendanceColumn;
-    const notesColumn = this.notesColumn;
+    this.attendanceNotes = {};
+    this.currentPage = 0;
+  }
+
+  onSessionSearchChange(): void {
+    this.selectedSession = null;
+    this.courseRows = [];
+    this.visibleCourseRows = [];
+    this.currentPage = 0;
+    this.pendingAttendanceCount = 0;
+    this.attendanceChoices = {};
+    this.attendanceNotes = {};
+    this.savedMessage = null;
+    this.error = null;
+    this.showSessionSuggestions = true;
+    this.refreshSessionSuggestions();
+  }
+
+  chooseSession(session: CourseSession): void {
+    this.selectedSession = session;
+    this.sessionSearchTerm = session.label;
+    this.showSessionSuggestions = false;
+    this.savedMessage = null;
+    this.error = null;
+
     const courseColumn = this.courseColumn;
-    this.courseRows = courseColumn
+    const dateColumn = this.sessionDateColumn;
+    const timeColumn = this.sessionTimeColumn;
+    this.courseRows = courseColumn && dateColumn && timeColumn
       ? this.tableData.reduce<CourseRow[]>((rows, row, index) => {
-        if (String(row[courseColumn] ?? '').trim() === course) {
+        const sameCourse = String(row[courseColumn] ?? '').trim() === this.selectedCourse;
+        const sameDate = this.normalizeSessionDate(row[dateColumn]) === session.date;
+        const sameTime = this.normalizeSessionTime(row[timeColumn]) === session.time;
+        if (sameCourse && sameDate && sameTime) {
           rows.push({ row, index });
         }
         return rows;
       }, [])
       : [];
+
+    this.attendanceDate = this.getExistingAttendanceDate(this.courseRows) || session.date;
     this.courseRows.sort((a, b) =>
       this.getStudentName(a.row).localeCompare(this.getStudentName(b.row), 'es', { sensitivity: 'base' })
     );
+    this.loadAttendanceChoices();
+  }
+
+  private loadAttendanceChoices(): void {
+    const attendanceColumn = this.attendanceColumn;
+    const notesColumn = this.notesColumn;
+    this.attendanceChoices = {};
+    this.attendanceNotes = {};
     this.pendingAttendanceCount = 0;
     this.courseRows.forEach(({ row, index }) => {
       const storedAttendance = String(attendanceColumn ? row[attendanceColumn] ?? '' : '').trim();
@@ -190,7 +299,7 @@ export class AttendanceComponent implements OnInit {
   }
 
   saveAttendance(): void {
-    if (!this.canSave || this.isSaving) {
+    if (!this.canSave || !this.selectedSession || this.isSaving) {
       return;
     }
 
@@ -206,7 +315,16 @@ export class AttendanceComponent implements OnInit {
     this.isSaving = true;
     this.error = null;
     this.savedMessage = null;
-    this.dataService.saveAttendance(this.selectedCourse, this.attendanceDate, updates).subscribe({
+    const attendanceDate = this.attendanceDate;
+    const selectedSession = this.selectedSession;
+    const selectedCourse = this.selectedCourse;
+    this.dataService.saveAttendance(
+      selectedCourse,
+      attendanceDate,
+      selectedSession.date,
+      selectedSession.time,
+      updates
+    ).subscribe({
       next: response => {
         if (!this.columns.includes(response.attendance_column)) {
           this.columns = [...this.columns, response.attendance_column];
@@ -219,7 +337,7 @@ export class AttendanceComponent implements OnInit {
         }
         updates.forEach(update => {
           this.tableData[update.row_index][response.attendance_column] = update.attendance;
-          this.tableData[update.row_index][response.date_column] = this.attendanceDate;
+          this.tableData[update.row_index][response.date_column] = attendanceDate;
           this.tableData[update.row_index][response.notes_column] = update.notes;
         });
         this.isSaving = false;
@@ -241,11 +359,104 @@ export class AttendanceComponent implements OnInit {
     return this.registrationColumn ? String(row[this.registrationColumn] ?? '').trim() : '';
   }
 
+  private normalizeSessionDate(value: any): string | null {
+    const match = String(value ?? '').trim().match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
+    if (!match) {
+      return null;
+    }
+
+    const [, year, month, day] = match;
+    const parsedDate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+    if (
+      parsedDate.getUTCFullYear() !== Number(year) ||
+      parsedDate.getUTCMonth() !== Number(month) - 1 ||
+      parsedDate.getUTCDate() !== Number(day)
+    ) {
+      return null;
+    }
+    return `${year}-${month}-${day}`;
+  }
+
+  private normalizeSessionTime(value: any): string | null {
+    const text = String(value ?? '').trim().toLowerCase().replace(/[.\s]/g, '');
+    const meridiemMatch = text.match(/^(\d{1,2}):(\d{2})(am|pm)$/);
+    if (meridiemMatch) {
+      let hour = Number(meridiemMatch[1]);
+      const minute = Number(meridiemMatch[2]);
+      if (hour < 1 || hour > 12 || minute > 59) {
+        return null;
+      }
+      if (meridiemMatch[3] === 'pm' && hour !== 12) {
+        hour += 12;
+      } else if (meridiemMatch[3] === 'am' && hour === 12) {
+        hour = 0;
+      }
+      return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    }
+
+    const twentyFourHourMatch = text.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (!twentyFourHourMatch) {
+      return null;
+    }
+    const hour = Number(twentyFourHourMatch[1]);
+    const minute = Number(twentyFourHourMatch[2]);
+    if (hour > 23 || minute > 59) {
+      return null;
+    }
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  }
+
+  private formatSessionLabel(date: string, time: string): string {
+    const [year, month, day] = date.split('-').map(Number);
+    const [hour, minute] = time.split(':').map(Number);
+    const dateLabel = new Intl.DateTimeFormat('es-MX', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC'
+    }).format(new Date(Date.UTC(year, month - 1, day)));
+    const timeLabel = new Intl.DateTimeFormat('es-MX', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'UTC'
+    }).format(new Date(Date.UTC(2026, 0, 1, hour, minute)));
+    return `${dateLabel.charAt(0).toLocaleUpperCase('es-MX')}${dateLabel.slice(1)} - ${timeLabel}`;
+  }
+
   private getTodayDate(): string {
     const today = new Date();
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     return `${today.getFullYear()}-${month}-${day}`;
+  }
+
+  private getExistingAttendanceDate(rows: CourseRow[]): string | null {
+    const dateColumn = this.columns.find(column => this.normalize(column) === 'fecha_asistencia');
+    if (!dateColumn) {
+      return null;
+    }
+
+    for (const { row } of rows) {
+      const value = String(row[dateColumn] ?? '').trim();
+      const match = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
+      if (!match) {
+        continue;
+      }
+
+      const [, year, month, day] = match;
+      const parsedDate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+      if (
+        parsedDate.getUTCFullYear() === Number(year) &&
+        parsedDate.getUTCMonth() === Number(month) - 1 &&
+        parsedDate.getUTCDate() === Number(day)
+      ) {
+        return `${year}-${month}-${day}`;
+      }
+    }
+
+    return null;
   }
 
   private updateVisibleRows(): void {
@@ -255,6 +466,14 @@ export class AttendanceComponent implements OnInit {
 
   private get attendanceColumn(): string | null {
     return this.columns.find(column => this.normalize(column) === 'asistencia') || null;
+  }
+
+  private get sessionDateColumn(): string | null {
+    return this.columns.find(column => this.normalize(column) === 'fecha del curso') || null;
+  }
+
+  private get sessionTimeColumn(): string | null {
+    return this.columns.find(column => this.normalize(column) === 'hora del curso') || null;
   }
 
   private get notesColumn(): string | null {

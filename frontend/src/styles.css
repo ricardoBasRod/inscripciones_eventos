@@ -57,61 +57,42 @@ body {
   --theme-font: 'Trebuchet MS', Arial, sans-serif;
 }
 
-.app-shell[data-theme='lavanda'] {
-  --theme-bg: #f6f2fa;
-  --theme-surface: #fff;
-  --theme-header: rgba(255, 255, 255, 0.97);
-  --theme-text: #392e4e;
-  --theme-muted: #746b84;
-  --theme-accent: #8056a8;
-  --theme-accent-strong: #624084;
-  --theme-secondary: #4a3b61;
-  --theme-soft: #eee7f5;
-  --theme-hover: #faf7fc;
-  --theme-active: #f0e7f8;
-  --theme-border: #ded2e9;
-  --theme-line: #f0ebf4;
-  --theme-radius: 1rem;
-  --theme-shadow: 0 12px 30px rgba(69, 48, 91, 0.09);
-  --theme-font: 'Segoe UI', sans-serif;
-}
-
-.app-shell[data-theme='coral'] {
-  --theme-bg: #fff5f0;
-  --theme-surface: #fffdfb;
-  --theme-header: rgba(255, 253, 251, 0.97);
-  --theme-text: #4a302b;
-  --theme-muted: #81635b;
-  --theme-accent: #d64f3d;
-  --theme-accent-strong: #a9362a;
-  --theme-secondary: #583b34;
-  --theme-soft: #fae7df;
-  --theme-hover: #fff8f4;
-  --theme-active: #ffe8df;
-  --theme-border: #ecd1c6;
-  --theme-line: #f4e5df;
-  --theme-radius: 0.15rem;
-  --theme-shadow: 0 5px 16px rgba(116, 62, 47, 0.1);
+.app-shell[data-theme='arena'] {
+  --theme-bg: #f7f1e5;
+  --theme-surface: #fffdf8;
+  --theme-header: rgba(255, 253, 248, 0.97);
+  --theme-text: #44392a;
+  --theme-muted: #7b6c56;
+  --theme-accent: #b77927;
+  --theme-accent-strong: #81551d;
+  --theme-secondary: #66513b;
+  --theme-soft: #eee4d1;
+  --theme-hover: #faf5ea;
+  --theme-active: #f4e8d2;
+  --theme-border: #dfd0b6;
+  --theme-line: #eee5d7;
+  --theme-radius: 0.4rem;
+  --theme-shadow: 0 8px 24px rgba(76, 57, 31, 0.07);
   --theme-font: Georgia, 'Times New Roman', serif;
 }
 
-.app-shell[data-theme='nocturno'] {
-  --theme-bg: #161d2a;
-  --theme-surface: #222c3c;
-  --theme-header: rgba(27, 37, 52, 0.98);
-  --theme-text: #ecf1f7;
-  --theme-muted: #aab8ca;
-  --theme-accent: #58c4c0;
-  --theme-accent-strong: #8ce0d9;
-  --theme-secondary: #35445a;
-  --theme-soft: #2e3b4e;
-  --theme-hover: #29364a;
-  --theme-active: #263d4c;
-  --theme-border: #3a4a60;
-  --theme-line: #344257;
-  --theme-radius: 0.55rem;
-  --theme-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
-  --theme-font: 'Segoe UI', sans-serif;
+.app-shell[data-theme='esmeralda'] {
+  --theme-bg: #eff6f1;
+  --theme-surface: #fff;
+  --theme-header: rgba(255, 255, 255, 0.97);
+  --theme-text: #203c32;
+  --theme-muted: #61786d;
+  --theme-accent: #25805d;
+  --theme-accent-strong: #176345;
+  --theme-secondary: #315a49;
+  --theme-soft: #dfede4;
+  --theme-hover: #f2f8f4;
+  --theme-active: #d9ede1;
+  --theme-border: #c9ded0;
+  --theme-line: #e6efe9;
+  --theme-radius: 0.9rem;
+  --theme-shadow: 0 12px 28px rgba(38, 91, 64, 0.1);
+  --theme-font: 'Trebuchet MS', Arial, sans-serif;
 }
 
 .app-shell[data-theme] {
@@ -273,7 +254,7 @@ body {
   background: var(--theme-hover);
 }
 
-.app-shell[data-theme] :is(.btn-primary, .attendance-actions .btn, .choice-button.selected.present, .bulk-actions .bulk-present) {
+.app-shell[data-theme] :is(.btn-primary, .attendance-actions .btn, .choice-button.selected.present, .bulk-actions .bulk-present, .breakdown-toggle) {
   background: var(--theme-accent);
   color: #fff;
 }
@@ -301,6 +282,17 @@ body {
 
 .app-shell[data-theme] :is(input, select, button, a):focus-visible {
   outline-color: var(--theme-accent);
+}
+
+.app-shell[data-theme] .event-management-page .content-section {
+  max-width: 1360px;
+  padding-top: 1.25rem;
+}
+
+.app-shell[data-theme] .registrations-heading,
+.app-shell[data-theme] .registrations-panel .search-bar {
+  padding-right: 1.25rem;
+  padding-left: 1.25rem;
 }
 
 .app-shell[data-theme='bosque'] .event-management-page .event-hero {
@@ -350,20 +342,9 @@ body {
   color: #fff;
 }
 
-.app-shell[data-theme='oceano'] .event-management-page .content-section {
-  max-width: 1360px;
-  padding-top: 1.25rem;
-}
-
 .app-shell[data-theme='oceano'] .registrations-panel {
   border: 0;
   border-radius: 1rem;
-}
-
-.app-shell[data-theme='oceano'] .registrations-heading,
-.app-shell[data-theme='oceano'] .search-bar {
-  padding-right: 1.25rem;
-  padding-left: 1.25rem;
 }
 
 .app-shell[data-theme='oceano'] .registrations-table thead th {
@@ -380,266 +361,31 @@ body {
   background: #dff3f7;
 }
 
-.app-shell[data-theme='lavanda'] .event-management-page .event-hero {
-  align-items: end;
+.app-shell[data-theme='arena'] .registrations-panel {
+  border-top: 4px solid #b77927;
 }
 
-.app-shell[data-theme='lavanda'] .hero-metric {
-  border: 0;
-  border-radius: 1rem 1rem 1rem 0.25rem;
-  background: linear-gradient(145deg, #8056a8, #a982c8);
-  box-shadow: 0 14px 28px rgba(80, 52, 109, 0.2);
+.app-shell[data-theme='arena'] .registrations-table thead th {
+  background: #eee4d1;
+  color: #62451f;
 }
 
-.app-shell[data-theme='lavanda'] .hero-metric :is(span, small, strong) {
-  color: #fff;
+.app-shell[data-theme='arena'] .registrations-table tbody tr:nth-child(even) {
+  background: #faf5ea;
 }
 
-.app-shell[data-theme='lavanda'] .registrations-panel {
-  overflow: hidden;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
+.app-shell[data-theme='esmeralda'] .registrations-panel {
+  border-top: 4px solid #25805d;
+  border-radius: 0.9rem;
 }
 
-.app-shell[data-theme='lavanda'] .registrations-heading {
-  padding: 1rem 0.25rem;
+.app-shell[data-theme='esmeralda'] .registrations-table thead th {
+  background: #dfede4;
+  color: #176345;
 }
 
-.app-shell[data-theme='lavanda'] .registrations-panel .search-bar {
-  padding: 1rem;
-  border: 1px solid var(--theme-border);
-  border-radius: 1rem;
-  background: var(--theme-surface);
-  box-shadow: var(--theme-shadow);
-}
-
-.app-shell[data-theme='lavanda'] .registrations-panel .top-scroll {
-  display: none;
-}
-
-.app-shell[data-theme='lavanda'] .registrations-panel .table-scroll {
-  max-height: 68vh;
-  margin-top: 1rem;
-  overflow: auto;
-}
-
-.app-shell[data-theme='lavanda'] .registrations-table {
-  display: block;
-  min-width: 0;
-  border-collapse: separate;
-}
-
-.app-shell[data-theme='lavanda'] .registrations-table thead,
-.app-shell[data-theme='lavanda'] .registrations-table tbody {
-  display: block;
-}
-
-.app-shell[data-theme='lavanda'] .registrations-table thead {
-  margin-bottom: 0.75rem;
-}
-
-.app-shell[data-theme='lavanda'] .registrations-table thead tr,
-.app-shell[data-theme='lavanda'] .registrations-table tbody tr {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-  gap: 0.55rem;
-}
-
-.app-shell[data-theme='lavanda'] .registrations-table thead th {
-  min-width: 0;
-  padding: 0.65rem;
-  border: 1px solid var(--theme-border);
-  border-radius: 0.65rem;
-  background: #eee7f5;
-  white-space: normal;
-}
-
-.app-shell[data-theme='lavanda'] .registrations-table tbody {
-  gap: 0.75rem;
-}
-
-.app-shell[data-theme='lavanda'] .registrations-table tbody tr {
-  padding: 0.7rem;
-  border: 1px solid var(--theme-border);
-  border-radius: 0.85rem;
-  background: var(--theme-surface);
-  box-shadow: var(--theme-shadow);
-}
-
-.app-shell[data-theme='lavanda'] .registrations-table tbody td {
-  min-width: 0;
-  padding: 0.55rem;
-  border: 0;
-  border-radius: 0.5rem;
-  background: #f8f5fb;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-.app-shell[data-theme='lavanda'] .registrations-table tbody td::before {
-  display: block;
-  margin-bottom: 0.2rem;
-  color: #746b84;
-  content: attr(data-label);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.app-shell[data-theme='coral'] .event-management-page .event-hero {
-  max-width: 1180px;
-  padding-top: 3rem;
-  padding-bottom: 2rem;
-  border-bottom: 1px solid #dcb4a5;
-}
-
-.app-shell[data-theme='coral'] .event-hero .hero-copy {
-  max-width: 760px;
-}
-
-.app-shell[data-theme='coral'] .event-hero h1 {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(2.8rem, 7vw, 5.3rem);
-  font-weight: 500;
-  letter-spacing: -0.06em;
-}
-
-.app-shell[data-theme='coral'] .hero-metric {
-  border: 0;
-  border-left: 1px solid #dcb4a5;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.app-shell[data-theme='coral'] .hero-metric strong {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 3.5rem;
-  font-weight: 500;
-}
-
-.app-shell[data-theme='coral'] .event-management-page .content-section {
-  max-width: 1180px;
-}
-
-.app-shell[data-theme='coral'] .registrations-panel {
-  border: 0;
-  border-top: 1px solid #dcb4a5;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.app-shell[data-theme='coral'] .registrations-heading {
-  padding: 1.4rem 0.5rem;
-}
-
-.app-shell[data-theme='coral'] .registrations-heading h2 {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 1.8rem;
-  font-weight: 500;
-}
-
-.app-shell[data-theme='coral'] .registrations-panel .search-bar {
-  padding: 0.75rem 0;
-  border-top: 1px solid #ecd1c6;
-  border-bottom: 1px solid #ecd1c6;
-}
-
-.app-shell[data-theme='coral'] .registrations-table {
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-.app-shell[data-theme='coral'] .registrations-table thead th {
-  padding-top: 1rem;
-  padding-bottom: 1rem;
-  background: transparent;
-  color: #a9362a;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-
-.app-shell[data-theme='coral'] .registrations-table tbody tr:nth-child(even) {
-  background: rgba(250, 231, 223, 0.5);
-}
-
-.app-shell[data-theme='coral'] .registrations-table tbody td {
-  padding-top: 0.85rem;
-  padding-bottom: 0.85rem;
-  border-bottom: 1px solid #e8cfc5;
-}
-
-.app-shell[data-theme='nocturno'] .event-management-page {
-  font-family: 'Consolas', 'Courier New', monospace;
-}
-
-.app-shell[data-theme='nocturno'] .event-management-page .event-hero {
-  max-width: none;
-  padding: 1.5rem max(calc((100vw - 1180px) / 2), 1rem);
-  border-bottom: 1px solid #58c4c0;
-  background: #1b2534;
-}
-
-.app-shell[data-theme='nocturno'] .event-hero h1 {
-  color: #ecf1f7;
-  font-family: 'Consolas', 'Courier New', monospace;
-  font-size: clamp(1.7rem, 4vw, 2.8rem);
-}
-
-.app-shell[data-theme='nocturno'] .event-hero .eyebrow,
-.app-shell[data-theme='nocturno'] .event-hero .page-description {
-  color: #aab8ca;
-}
-
-.app-shell[data-theme='nocturno'] .hero-metric {
-  border: 1px solid #3a4a60;
-  border-radius: 0.25rem;
-  background: #161d2a;
-  box-shadow: inset 0 0 18px rgba(88, 196, 192, 0.06);
-}
-
-.app-shell[data-theme='nocturno'] .hero-metric strong {
-  color: #58c4c0;
-  font-family: inherit;
-}
-
-.app-shell[data-theme='nocturno'] .registrations-panel {
-  border-radius: 0.25rem;
-  box-shadow: 0 0 0 1px rgba(88, 196, 192, 0.08), 0 12px 32px rgba(0, 0, 0, 0.24);
-}
-
-.app-shell[data-theme='nocturno'] .registrations-heading .eyebrow {
-  color: #58c4c0;
-}
-
-.app-shell[data-theme='nocturno'] .registrations-table {
-  font-family: 'Consolas', 'Courier New', monospace;
-  font-size: 0.83rem;
-}
-
-.app-shell[data-theme='nocturno'] .registrations-table thead th {
-  background: #2e3b4e;
-  color: #8ce0d9;
-  font-family: inherit;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.app-shell[data-theme='nocturno'] .registrations-table tbody tr:nth-child(even) {
-  background: rgba(46, 59, 78, 0.45);
-}
-
-.app-shell[data-theme='nocturno'] .registrations-table tbody td {
-  border-right: 1px solid #344257;
-  font-variant-numeric: tabular-nums;
-}
-
-.app-shell[data-theme='nocturno'] .registrations-table tbody tr:hover {
-  background: #263d4c;
+.app-shell[data-theme='esmeralda'] .registrations-table tbody tr:nth-child(even) {
+  background: #f2f8f4;
 }
 
 /* Scrollbar */
